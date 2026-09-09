@@ -25,14 +25,14 @@ cd frontend && npm install
 ## 开发命令
 
 ```bash
-# 后端
-cd backend && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# 后端；脚本优先使用本机 Python 3.12，Ubuntu 20.04 上自动使用非 root 的 Python 3.12 容器运行时
+cd backend && ../scripts/backend-python.sh -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 # 前端
 cd frontend && npm run dev
 
 # 后端测试与检查
-cd backend && pytest && ruff check app tests
+cd backend && ../scripts/backend-python.sh -m pytest && ../scripts/backend-python.sh -m ruff check app tests
 
 # 前端构建、测试与类型检查
 cd frontend && npm run typecheck && npm test && npm run build

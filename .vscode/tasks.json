@@ -4,7 +4,7 @@
     {
       "label": "backend: dev",
       "type": "shell",
-      "command": "python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+      "command": "${workspaceFolder}/scripts/backend-python.sh -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
       "options": { "cwd": "${workspaceFolder}/backend" },
       "isBackground": true,
       "problemMatcher": []
@@ -20,7 +20,7 @@
     {
       "label": "test: backend",
       "type": "shell",
-      "command": "pytest",
+      "command": "${workspaceFolder}/scripts/backend-python.sh -m pytest",
       "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": []
     },
@@ -39,7 +39,7 @@
     {
       "label": "lint: backend",
       "type": "shell",
-      "command": "ruff check app tests",
+      "command": "${workspaceFolder}/scripts/backend-python.sh -m ruff check app tests",
       "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": []
     },
@@ -53,7 +53,7 @@
     {
       "label": "model: health",
       "type": "shell",
-      "command": "python -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/system/status').read().decode())\"",
+      "command": "${workspaceFolder}/scripts/backend-python.sh -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/system/status').read().decode())\"",
       "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": []
     },
@@ -64,4 +64,3 @@
     }
   ]
 }
-
