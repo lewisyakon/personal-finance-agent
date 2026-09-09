@@ -1,0 +1,67 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "backend: dev",
+      "type": "shell",
+      "command": "python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "frontend: dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "test: backend",
+      "type": "shell",
+      "command": "pytest",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "test: frontend",
+      "type": "shell",
+      "command": "npm test",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "lint",
+      "dependsOrder": "sequence",
+      "dependsOn": ["lint: backend", "lint: frontend"]
+    },
+    {
+      "label": "lint: backend",
+      "type": "shell",
+      "command": "ruff check app tests",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "lint: frontend",
+      "type": "shell",
+      "command": "npm run lint",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "model: health",
+      "type": "shell",
+      "command": "python -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/system/status').read().decode())\"",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "app: dev",
+      "dependsOrder": "parallel",
+      "dependsOn": ["backend: dev", "frontend: dev"]
+    }
+  ]
+}
+
