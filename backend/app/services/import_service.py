@@ -29,6 +29,7 @@ from app.schemas.imports import (
 from app.schemas.transaction import ParseReport, TransactionRecord
 
 _SAFE_FILENAME = re.compile(r"[^\w.\-\u4e00-\u9fff]+", re.UNICODE)
+_SUPPORTED_FORMATS = {"csv", "xlsx"}
 
 
 class ImportExecutor(Protocol):
@@ -49,6 +50,25 @@ def _safe_filename(name: str) -> str:
     name = Path(name or "账单.csv").name
     cleaned = _SAFE_FILENAME.sub("_", name).strip("._")
     return (cleaned or "账单.csv")[:255]
+
+
+def _infer_format(file_name: str) -> str:
+    suffix = Path(file_name).suffix.lower().lstrip(".")
+    if suffix not in _SUPPORTED_FORMATS:
+        raise ValueError("当前仅支持 CSV 或 XLSX 文件")
+    return suffix
+
+
+def _resolve_format(file_name: str, requested_format: str | None) -> str:
+    inferred = _infer_format(file_name)
+    if requested_format is None or requested_format.lower() == "auto":
+        return inferred
+    normalized = requested_format.lower()
+    if normalized not in _SUPPORTED_FORMATS:
+        raise ValueError("当前仅支持 csv 或 xlsx 格式")
+    if normalized != inferred:
+        raise ValueError(f"format={normalized} 与文件扩展名 .{inferred} 不一致")
+    return normalized
 
 
 def _normalize_text(value: str) -> str:
@@ -104,6 +124,12 @@ class InProcessImportExecutor:
         bill_import.updated_at = _now()
         self.db.commit()
         try:
+            # Correct legacy rows created before format inference was added,
+            # e.g. an .xlsx upload previously recorded as CSV.
+            detected_format = _infer_format(bill_import.file_name)
+            if detected_format != bill_import.format:
+                bill_import.format = detected_format
+                self.db.commit()
             report = parser_registry.parse(
                 Path(bill_import.raw_path), bill_import.source, bill_import.format
             )
@@ -225,19 +251,18 @@ def create_import(
     file_name: str,
     content: bytes,
     source: str = "wechat",
-    format: str = "csv",
+    format: str | None = None,
 ) -> tuple[BillImport, bool]:
     settings = get_settings()
     ensure_owner(db, owner_id)
-    if format != "csv" or source != "wechat":
-        raise ValueError("当前阶段仅支持 wechat/csv")
+    if source != "wechat":
+        raise ValueError("当前阶段仅支持 wechat 来源")
     if not content:
         raise ValueError("上传文件为空")
     if len(content) > settings.max_upload_bytes:
         raise ValueError("上传文件超过大小限制")
     safe_name = _safe_filename(file_name)
-    if not safe_name.lower().endswith(".csv"):
-        raise ValueError("当前阶段仅支持 CSV 文件")
+    resolved_format = _resolve_format(safe_name, format)
     digest = hashlib.sha256(content).hexdigest()
     existing = db.scalar(
         select(BillImport).where(BillImport.owner_id == owner_id, BillImport.file_sha256 == digest)
@@ -252,7 +277,7 @@ def create_import(
         id=str(uuid4()),
         owner_id=owner_id,
         source=source,
-        format=format,
+        format=resolved_format,
         file_name=safe_name,
         file_sha256=digest,
         raw_path=str(path),

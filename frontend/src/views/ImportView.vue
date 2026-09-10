@@ -42,11 +42,16 @@ onMounted(refresh)
       <div>
         <p class="eyebrow">IMPORTS</p>
         <h1>导入账单</h1>
-        <p class="muted">上传微信导出的 CSV，系统会自动解析、去重并保留导入报告。</p>
+        <p class="muted">上传微信导出的 CSV 或 XLSX，系统会自动解析、去重并保留导入报告。</p>
       </div>
       <label class="upload-button">
-        {{ busy ? '处理中…' : '选择 CSV' }}
-        <input type="file" accept=".csv,text/csv" :disabled="busy" @change="onFile">
+        {{ busy ? '处理中…' : '选择 CSV/XLSX' }}
+        <input
+          type="file"
+          accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          :disabled="busy"
+          @change="onFile"
+        >
       </label>
     </header>
     <p v-if="error" class="error" role="alert">{{ error }}</p>

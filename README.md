@@ -3,22 +3,24 @@
 本仓库按《个人消费分析多智能体系统开发规格》分阶段实现。本次交付完成：
 
 - 阶段 0：Vue 3 + TypeScript + Vite、FastAPI、SQLite/WAL、Alembic、mock ModelProvider、VS Code 任务和基础测试。
-- 阶段 1：微信账单 CSV Parser，支持 UTF-8/UTF-8 BOM/GB18030/UTF-16 尝试、表头识别、金额/时间/方向/状态标准化、行级错误和 Golden Test。
+- 阶段 1：微信账单 CSV/XLSX Parser，CSV 支持 UTF-8/UTF-8 BOM/GB18030/UTF-16 尝试，二者均支持表头识别、金额/时间/方向/状态标准化、行级错误和 Golden Test。
 - 阶段 2：账单导入任务、HMAC 去重、SQLite 交易持久化、分页筛选、交易详情和人工分类审计；前端提供导入记录与交易管理页面。
 
-当前 Parser 只支持 CSV；Excel 和 ZIP 会在脱敏样例确实需要时按阶段扩展。Parser 不调用 LLM。
+当前 Parser 支持微信 CSV 和 XLSX；ZIP 会在脱敏样例确实需要时按阶段扩展。Parser 不调用 LLM。
 
 ## 阶段 2 使用说明
 
-启动 API 后访问 `/imports` 上传微信 CSV，或直接调用：
+启动 API 后访问 `/imports` 上传微信 CSV/XLSX，或直接调用：
 
 ```bash
 curl -F 'file=@datasets/sanitized_samples/wechat_sample_utf8.csv' \
   http://127.0.0.1:8000/api/v1/imports
+curl -F 'file=@/home/lewis/pfa-private-input/wechat-2026.xlsx' \
+  http://127.0.0.1:8000/api/v1/imports
 curl 'http://127.0.0.1:8000/api/v1/transactions?page=1&page_size=20'
 ```
 
-导入接口在本地使用进程内执行器同步完成。每个工作区以 `LOCAL_OWNER_ID` 隔离；交易指纹使用 `FINGERPRINT_SECRET` 计算 HMAC-SHA256，数据库在 owner 范围内建立唯一约束。同一文件的 SHA-256 已存在时直接复用原导入任务，不会重复入账。原始文件只在 `RAW_FILE_TTL_MINUTES` 到期后清理，数据库保留文件摘要和标准化事实。
+导入接口根据文件扩展名自动识别 `csv` 或 `xlsx`；也可以显式传 `?format=csv` 或 `?format=xlsx`，但格式必须和文件扩展名一致。接口在本地使用进程内执行器同步完成。每个工作区以 `LOCAL_OWNER_ID` 隔离；交易指纹使用 `FINGERPRINT_SECRET` 计算 HMAC-SHA256，数据库在 owner 范围内建立唯一约束。同一文件的 SHA-256 已存在时直接复用原导入任务，不会重复入账。原始文件只在 `RAW_FILE_TTL_MINUTES` 到期后清理，数据库保留文件摘要和标准化事实。
 
 阶段 2 API：
 

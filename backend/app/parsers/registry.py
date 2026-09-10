@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.parsers.base import BillParser
 from app.parsers.wechat_csv import WechatCsvParser
+from app.parsers.wechat_xlsx import WechatXlsxParser
 
 
 class ParserRegistry:
@@ -17,10 +18,13 @@ class ParserRegistry:
         except KeyError as exc:
             raise ValueError(f"不支持的账单来源或格式: {source}/{format}") from exc
 
-    def parse(self, path: Path, source: str = "wechat", format: str = "csv"):
-        return self.create(source, format).parse(path)
+    def parse(self, path: Path, source: str = "wechat", format: str | None = None):
+        # Preserve the stage-1 default for extensionless CSV fixtures while
+        # allowing normal uploads to select XLSX from their file suffix.
+        resolved_format = format or path.suffix.lower().lstrip(".") or "csv"
+        return self.create(source, resolved_format).parse(path)
 
 
 parser_registry = ParserRegistry()
 parser_registry.register("wechat", "csv", WechatCsvParser)
-
+parser_registry.register("wechat", "xlsx", WechatXlsxParser)

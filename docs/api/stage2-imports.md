@@ -4,7 +4,7 @@
 
 ## 导入
 
-`POST /imports` 使用 multipart 字段 `file` 上传微信 CSV。可选查询参数为 `source=wechat` 和 `format=csv`。接口在本地进程内执行器中同步解析并返回导入报告：
+`POST /imports` 使用 multipart 字段 `file` 上传微信 CSV 或 XLSX。`source` 默认为 `wechat`；`format` 可省略，服务会根据文件扩展名自动识别，也可以显式传 `format=csv` 或 `format=xlsx`。显式格式必须和文件扩展名一致。接口在本地进程内执行器中同步解析并返回导入报告：
 
 ```json
 {
@@ -26,7 +26,7 @@
 
 - `GET /imports?page=1&page_size=20`：分页列表。
 - `GET /imports/{id}`：任务详情。
-- `POST /imports/{id}/retry`：重试 `pending`、`processing`、`partial` 或 `failed` 任务；唯一指纹保证中断后重试不重复入账。
+- `POST /imports/{id}/retry`：重试 `pending`、`processing`、`partial` 或 `failed` 任务；服务会按任务文件名纠正旧版本记录中的格式，唯一指纹保证中断后重试不重复入账。
 - `DELETE /imports/{id}`：删除任务、关联交易和仍存在的原始文件。
 
 ## 交易

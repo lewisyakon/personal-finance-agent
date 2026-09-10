@@ -31,7 +31,7 @@ def _error(code: str, message: str, http_status: int = 400) -> HTTPException:
 async def upload_import(
     file: UploadFile = File(...),
     source: str = Query(default="wechat"),
-    format: str = Query(default="csv"),
+    format: str | None = Query(default=None),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> BillImportResponse:
