@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import { fetchSystemStatus } from '../api/system'
 import type { SystemStatus } from '../types/system'
@@ -21,7 +22,7 @@ onMounted(async () => {
     <header>
       <p class="eyebrow">LOCAL-FIRST PERSONAL FINANCE</p>
       <h1>个人消费分析</h1>
-      <p class="subtitle">阶段 0 工程基线 · 阶段 1 微信账单 Parser</p>
+      <p class="subtitle">阶段 2 导入、去重与交易管理</p>
     </header>
 
     <section class="status-card" aria-labelledby="status-title">
@@ -38,6 +39,10 @@ onMounted(async () => {
         </div>
       </div>
     </section>
+    <nav class="quick-links" aria-label="主要功能">
+      <RouterLink to="/imports">导入账单</RouterLink>
+      <RouterLink to="/transactions">交易管理</RouterLink>
+    </nav>
   </main>
 </template>
 
@@ -53,5 +58,6 @@ h1 { margin: 8px 0; font-size: clamp(32px, 6vw, 56px); }
 .status-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #ef4444; }
 .status-dot.healthy { background: #22c55e; }
 .error { color: #b91c1c; }
+.quick-links { display: flex; gap: 12px; margin-top: 20px; }
+.quick-links a { color: #2563eb; text-decoration: none; padding: 10px 14px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; }
 </style>
-

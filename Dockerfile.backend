@@ -1,0 +1,29 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=8 \
+    PYTHONPATH=/workspace/backend
+
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+
+WORKDIR /opt
+COPY backend /opt/backend
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eu; \
+    attempt=1; \
+    while ! python -m pip install --prefer-binary "/opt/backend[dev]"; do \
+      if [ "${attempt}" -ge 4 ]; then \
+        echo "依赖下载连续失败，请检查网络或使用 PFA_PIP_INDEX_URL 指定可用的 PyPI 镜像。" >&2; \
+        exit 1; \
+      fi; \
+      sleep "$((attempt * 10))"; \
+      attempt="$((attempt + 1))"; \
+    done
+
+WORKDIR /workspace/backend
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

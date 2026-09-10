@@ -14,10 +14,13 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 # Ubuntu 20.04 in the development host has an older GLIBC than the selected
-# Python 3.12 build. The process still runs as lewis and writes only to the
-# mounted project directory; Docker is used as a runtime compatibility layer.
-exec docker run --rm --network host --user "$(id -u):$(id -g)" \
-  -v "${ROOT_DIR}:/workspace" -w /workspace/backend \
-  python:3.12-slim \
-  /workspace/.venv/bin/python "$@"
+# Python 3.12 build. Build/run the project image instead of trying to execute
+# the host-created .venv inside an unrelated Python container. Compose mounts
+# only the source/data directories and keeps the process on the caller's UID.
+if [[ -f "${ROOT_DIR}/docker-compose.yml" ]]; then
+  exec "${ROOT_DIR}/scripts/docker-compose.sh" run --rm --no-deps --build \
+    --service-ports backend python "$@"
+fi
 
+echo "未找到项目 Docker Compose 配置，无法启动隔离的 Python 3.12 运行时。" >&2
+exit 1

@@ -1,0 +1,53 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      # This affects only RUN steps while building the image. Runtime remains
+      # on Docker's bridge network. Use PFA_BUILD_NETWORK=host when the host
+      # network path is more reliable than Docker's bridge/DNS path.
+      network: "${PFA_BUILD_NETWORK:-default}"
+      args:
+        PIP_INDEX_URL: "${PFA_PIP_INDEX_URL:-https://pypi.org/simple}"
+    working_dir: /workspace/backend
+    # The wrapper script exports the host UID/GID. The defaults keep direct
+    # `docker compose` usage usable on the common Linux UID 1000 setup.
+    user: "${PFA_UID:-1000}:${PFA_GID:-1000}"
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
+    environment:
+      PYTHONPATH: /workspace/backend
+      DATABASE_URL: sqlite:////workspace/data/personal_finance.db
+      DATA_DIR: /workspace/data
+      APP_MODE: "${APP_MODE:-local}"
+      APP_TIMEZONE: "${APP_TIMEZONE:-Asia/Shanghai}"
+      LLM_PROVIDER: "${LLM_PROVIDER:-mock}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-}"
+      LLM_MODEL: "${LLM_MODEL:-mock-model}"
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+      LLM_TIMEOUT_SECONDS: "${LLM_TIMEOUT_SECONDS:-30}"
+      AGENT_MAX_STEPS: "${AGENT_MAX_STEPS:-20}"
+      AGENT_MAX_TOOL_CALLS: "${AGENT_MAX_TOOL_CALLS:-40}"
+      RAW_FILE_TTL_MINUTES: "${RAW_FILE_TTL_MINUTES:-60}"
+      FINGERPRINT_SECRET: "${FINGERPRINT_SECRET:-local-development-fingerprint-secret}"
+      MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-20971520}"
+      LOCAL_OWNER_ID: "${LOCAL_OWNER_ID:-local-owner}"
+    ports:
+      # Do not expose the local finance API on all host interfaces.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Only these project directories are shared with the container. The
+      # host's .venv and global site-packages are untouched.
+      - ./backend:/workspace/backend
+      - "${PFA_DATA_DIR:-./data}:/workspace/data"
+      - ./datasets:/workspace/datasets:ro

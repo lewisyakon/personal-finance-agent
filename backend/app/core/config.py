@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     llm_api_key: str | None = Field(default=None, validation_alias="LLM_API_KEY")
     llm_timeout_seconds: float = Field(default=30.0, validation_alias="LLM_TIMEOUT_SECONDS")
     raw_file_ttl_minutes: int = Field(default=60, validation_alias="RAW_FILE_TTL_MINUTES")
+    # Used only for deterministic, owner-scoped fingerprints.  In a hosted
+    # deployment this must be supplied through the environment or a secret
+    # manager; it is never written to logs or persisted in the database.
+    fingerprint_secret: str = Field(
+        default="local-development-fingerprint-secret",
+        validation_alias="FINGERPRINT_SECRET",
+    )
+    max_upload_bytes: int = Field(default=20 * 1024 * 1024, validation_alias="MAX_UPLOAD_BYTES")
+    local_owner_id: str = Field(default="local-owner", validation_alias="LOCAL_OWNER_ID")
 
     model_config = SettingsConfigDict(
         env_file=(".env",),
@@ -41,4 +50,3 @@ def get_settings() -> Settings:
     settings = Settings()
     settings.ensure_data_dirs()
     return settings
-

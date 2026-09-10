@@ -2,11 +2,11 @@
 
 ## 当前阶段
 
-阶段 0 和阶段 1 已完成基线实现。下一阶段是导入、去重与交易管理；一次只实施一个阶段。
+阶段 0、阶段 1 和阶段 2 已完成实现。阶段 2 的本次变更集中在导入、去重与交易管理；一次只实施一个阶段。
 
 ## 允许修改范围
 
-当前只允许修改工程基线、微信 CSV Parser、测试、文档和示例数据。不得加入真实账单、微信登录、自动账户连接、Redis、Celery、Kubernetes 或未评测的 Agent。
+当前阶段允许修改工程基线、微信 CSV Parser、导入/交易 Service、API、Vue 导入与交易页面、测试、文档和示例数据。不得加入真实账单、微信登录、自动账户连接、Redis、Celery、Kubernetes 或未评测的 Agent。
 
 ## 约束
 
@@ -23,4 +23,3 @@
 cd backend && pytest && ruff check app tests
 cd ../frontend && npm run typecheck && npm test && npm run build
 ```
-
