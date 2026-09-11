@@ -5,10 +5,16 @@
 - 阶段 0：Vue 3 + TypeScript + Vite、FastAPI、SQLite/WAL、Alembic、mock ModelProvider、VS Code 任务和基础测试。
 - 阶段 1：微信账单 CSV/XLSX Parser，CSV 支持 UTF-8/UTF-8 BOM/GB18030/UTF-16 尝试，二者均支持表头识别、金额/时间/方向/状态标准化、行级错误和 Golden Test。
 - 阶段 2：账单导入任务、HMAC 去重、SQLite 交易持久化、分页筛选、交易详情和人工分类审计；前端提供导入记录与交易管理页面。
+- 阶段 3：确定性统计服务、统计 API、统计口径文档和 Dashboard；支持收支汇总、趋势、
+  分类构成、商户排行、大额交易、固定/可变支出、预算和环比/同比。
 
 当前 Parser 支持微信 CSV 和 XLSX；ZIP 会在脱敏样例确实需要时按阶段扩展。Parser 不调用 LLM。
 
-## 阶段 2 使用说明
+## 使用说明
+
+阶段 3 使用 SQLite 文件数据库，不需要在宿主机安装或启动独立的 SQLite 服务。
+Python 自带 `sqlite3`，SQLAlchemy 会直接读写 `PFA_DATA_DIR/personal_finance.db`；
+Docker 运行时只是把同一个数据目录挂载到容器内。
 
 启动 API 后访问 `/imports` 上传微信 CSV/XLSX，或直接调用：
 
@@ -18,9 +24,15 @@ curl -F 'file=@datasets/sanitized_samples/wechat_sample_utf8.csv' \
 curl -F 'file=@/home/lewis/pfa-validation-data/wechat-2026.xlsx' \
   http://127.0.0.1:8000/api/v1/imports
 curl 'http://127.0.0.1:8000/api/v1/transactions?page=1&page_size=20'
+curl 'http://127.0.0.1:8000/api/v1/stats/summary?from=2026-01-01&to=2026-02-01'
 ```
 
 导入接口根据文件扩展名自动识别 `csv` 或 `xlsx`；也可以显式传 `?format=csv` 或 `?format=xlsx`，但格式必须和文件扩展名一致。接口在本地使用进程内执行器同步完成。每个工作区以 `LOCAL_OWNER_ID` 隔离；交易指纹使用 `FINGERPRINT_SECRET` 计算 HMAC-SHA256，数据库在 owner 范围内建立唯一约束。同一文件的 SHA-256 已存在时直接复用原导入任务，不会重复入账。原始文件只在 `RAW_FILE_TTL_MINUTES` 到期后清理，数据库保留文件摘要和标准化事实。
+
+微信导出状态中的“已存入零钱”“对方已收钱”“已转账”“已收钱”会标准化为成功；
+“已全额退款”“已退款¥0.56”“已退款(¥0.56)”等已完成退款变体会标准化为退款。
+如果同一文件已经在旧版本 Parser 下导入过，幂等规则会复用旧任务，不会自动重解析；
+要应用新的状态映射，请先在导入页面删除旧任务（这会级联删除该任务的交易），再重新上传原文件。
 
 这里的 `PFA_DATA_DIR` 是后端数据库、上传临时文件和日志的存储目录；使用
 `curl -F file=@...` 时，`@` 后面的路径由运行 `curl` 的服务器 shell 读取，可以与
@@ -31,6 +43,47 @@ curl 'http://127.0.0.1:8000/api/v1/transactions?page=1&page_size=20'
 - `POST /api/v1/imports`、`GET /api/v1/imports`、`GET /api/v1/imports/{id}`、`POST /api/v1/imports/{id}/retry`、`DELETE /api/v1/imports/{id}`。
 - `GET /api/v1/transactions`（分页、时间、方向、状态、分类、商户筛选）、`GET /api/v1/transactions/{id}`。
 - `PATCH /api/v1/transactions/{id}/category`，响应包含修改前后分类；审计记录写入 `transaction_category_changes`。
+
+阶段 3 API：
+
+- `GET /api/v1/stats/summary`：收支、净流量、交易数、退款、固定/可变支出和可选预算。
+- `GET /api/v1/stats/categories`、`/trend`、`/merchants`：分类构成、日/周/月/年趋势和排行。
+- `GET /api/v1/stats/large-transactions`、`/fixed-variable`、`/budget`、`/comparison`：
+  大额交易、固定/可变支出、预算状态及环比/同比。
+- 前端 Dashboard 地址为 `/dashboard`，首页和顶部导航均提供入口。点击大额交易可跳转
+  到交易管理页继续查看详情；页面金额只做分到元的显示换算，权威统计来自后端。
+
+统计边界、退款、转账、失败交易、多币种和比较定义见
+[`docs/data-contracts/stage3-stats.md`](docs/data-contracts/stage3-stats.md)。
+
+## 阶段 3 验收
+
+后端测试使用临时数据目录，不会触碰当前的 `pfa-validation-data`。在服务器上执行：
+
+```bash
+cd ~/personal-finance-agent
+TEST_DATA_DIR="$(mktemp -d)"
+
+PFA_DATA_DIR="$TEST_DATA_DIR" \
+PFA_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+  ./scripts/docker-compose.sh build backend
+
+PFA_DATA_DIR="$TEST_DATA_DIR" \
+  ./scripts/docker-compose.sh run --rm --no-deps backend python -m pytest
+
+PFA_DATA_DIR="$TEST_DATA_DIR" \
+  ./scripts/docker-compose.sh run --rm --no-deps backend python -m ruff check app tests
+```
+
+前端依赖已安装时：
+
+```bash
+cd ~/personal-finance-agent/frontend
+npm run typecheck
+npm test -- --run
+npm run build
+npm run lint
+```
 
 首次启动会自动创建本地表；生产/升级环境请使用 Alembic：`cd backend && alembic upgrade head`。
 

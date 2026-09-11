@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 
 import { fetchTransaction, fetchTransactions, updateTransactionCategory } from '../api/finance'
 import type { Transaction } from '../types/finance'
@@ -9,6 +10,12 @@ const merchant = ref('')
 const category = ref('')
 const error = ref('')
 const selected = ref<Transaction | null>(null)
+const route = useRoute()
+
+const routeMerchant = route.query.merchant
+if (typeof routeMerchant === 'string') {
+  merchant.value = routeMerchant
+}
 
 async function refresh() {
   try {

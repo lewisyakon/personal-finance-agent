@@ -22,7 +22,7 @@ onMounted(async () => {
     <header>
       <p class="eyebrow">LOCAL-FIRST PERSONAL FINANCE</p>
       <h1>个人消费分析</h1>
-      <p class="subtitle">阶段 2 导入、去重与交易管理</p>
+      <p class="subtitle">阶段 3 统计服务与 Dashboard</p>
     </header>
 
     <section class="status-card" aria-labelledby="status-title">
@@ -40,6 +40,7 @@ onMounted(async () => {
       </div>
     </section>
     <nav class="quick-links" aria-label="主要功能">
+      <RouterLink to="/dashboard">查看 Dashboard</RouterLink>
       <RouterLink to="/imports">导入账单</RouterLink>
       <RouterLink to="/transactions">交易管理</RouterLink>
     </nav>

@@ -7,6 +7,7 @@ import { RouterView } from 'vue-router'
     <nav class="global-nav" aria-label="主导航">
       <RouterLink to="/" class="brand">个人消费分析</RouterLink>
       <div class="nav-links">
+        <RouterLink to="/dashboard">Dashboard</RouterLink>
         <RouterLink to="/imports">导入账单</RouterLink>
         <RouterLink to="/transactions">交易管理</RouterLink>
       </div>

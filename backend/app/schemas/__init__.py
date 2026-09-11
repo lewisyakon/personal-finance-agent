@@ -7,6 +7,23 @@ from app.schemas.imports import (
     TransactionListResponse,
     TransactionResponse,
 )
+from app.schemas.stats import (
+    BudgetResponse,
+    BudgetStatus,
+    CategoryBreakdown,
+    CategoryBreakdownItem,
+    ComparisonMetric,
+    ComparisonResponse,
+    FixedVariableBreakdown,
+    LargeTransactionItem,
+    LargeTransactionResponse,
+    MerchantRanking,
+    MerchantRankingItem,
+    StatsPeriod,
+    StatsSummary,
+    TrendItem,
+    TrendResponse,
+)
 from app.schemas.transaction import ParseReport, ParseRowError, TransactionRecord
 
 __all__ = [
@@ -20,4 +37,19 @@ __all__ = [
     "TransactionListResponse",
     "TransactionRecord",
     "TransactionResponse",
+    "BudgetResponse",
+    "BudgetStatus",
+    "CategoryBreakdown",
+    "CategoryBreakdownItem",
+    "ComparisonMetric",
+    "ComparisonResponse",
+    "FixedVariableBreakdown",
+    "LargeTransactionItem",
+    "LargeTransactionResponse",
+    "MerchantRanking",
+    "MerchantRankingItem",
+    "StatsPeriod",
+    "StatsSummary",
+    "TrendItem",
+    "TrendResponse",
 ]

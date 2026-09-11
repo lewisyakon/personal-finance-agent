@@ -97,7 +97,19 @@ def _status(value: str) -> str:
     normalized = _clean(value)
     if normalized in {"支付成功", "交易成功", "成功"}:
         return "success"
-    if normalized in {"已退款", "退款成功", "退款"}:
+    # WeChat exports several successful receipt/transfer labels depending on
+    # the transaction type. They are all terminal, successful states.
+    if normalized in {"已存入零钱", "对方已收钱", "已转账", "已收钱"}:
+        return "success"
+    # Refund rows may include the refunded amount in the status, for example
+    # ``已退款¥0.56`` or ``已退款(¥0.56)``. Treat all completed refund labels
+    # as refunded rather than silently excluding them from later statistics.
+    if (
+        normalized in {"已退款", "已全额退款", "退款成功", "退款"}
+        or normalized.startswith("已退款¥")
+        or normalized.startswith("已退款(")
+        or normalized.startswith("已全额退款")
+    ):
         return "refunded"
     if normalized in {"支付失败", "交易失败", "失败"}:
         return "failed"

@@ -11,6 +11,10 @@
 - `amount_minor` 是整数（例如人民币 12.50 元保存为 `1250`）。
 - `occurred_at` 由 Parser 解析为带 `Asia/Shanghai` 时区的时间，入库转换为 UTC；SQLite 物理值不带 offset，但 ORM 读取时恢复为带 UTC offset 的时间。
 - `direction`、`status` 使用 Parser 的固定枚举值。
+- 微信导出的终态变体会统一映射：`已存入零钱`、`对方已收钱`、`已转账` 和 `已收钱`
+  映射为 `success`；`已全额退款`、`已退款¥金额` 和 `已退款(¥金额)` 等已完成退款
+  映射为 `refunded`。同一文件的 SHA-256 幂等复用不会触发重新解析；若 Parser 规则升级，
+  需要删除旧导入后再上传原文件。
 - `platform_category` 保留平台原始分类，`category` 和 `category_source` 供后续确定性规则、Semantic Agent 和用户确认使用。
 - `owner_id + fingerprint` 唯一。fingerprint 使用配置的 `FINGERPRINT_SECRET` 做 HMAC-SHA256：优先使用平台稳定交易号；缺少交易号时使用时间、金额、方向、规范商户和描述摘要。
 

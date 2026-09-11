@@ -1,11 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.api.imports import router as imports_router
+from app.api.stats import router as stats_router
 from app.api.system import router as system_router
 from app.api.transactions import router as transactions_router
 from app.db.init import init_database
 from app.db.session import SessionLocal
 from app.services.import_service import cleanup_expired_raw_files
+from app.services.stats_service import StatsServiceError
 
 
 def create_app() -> FastAPI:
@@ -18,6 +21,14 @@ def create_app() -> FastAPI:
     app.include_router(system_router, prefix="/api/v1")
     app.include_router(imports_router, prefix="/api/v1")
     app.include_router(transactions_router, prefix="/api/v1")
+    app.include_router(stats_router, prefix="/api/v1")
+
+    @app.exception_handler(StatsServiceError)
+    async def stats_validation_error(_request: Request, exc: StatsServiceError) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": {"code": "STATS_VALIDATION_ERROR", "message": str(exc)}},
+        )
 
     @app.get("/", tags=["system"])
     def root() -> dict[str, str]:

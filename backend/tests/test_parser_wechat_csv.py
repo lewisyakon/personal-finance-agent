@@ -4,6 +4,7 @@ from io import BytesIO
 from openpyxl import Workbook
 
 from app.parsers.registry import parser_registry
+from app.parsers.wechat_csv import parse_wechat_rows
 
 
 def test_wechat_csv_golden_sample(sample_dir):
@@ -100,3 +101,98 @@ def test_wechat_xlsx_parser_reads_excel_cells(tmp_path):
     assert report.records[0].status == "success"
     assert report.records[1].amount_minor == 5000
     assert report.records[1].direction == "income"
+
+
+def test_wechat_status_variants_are_normalized_deterministically():
+    rows = [
+        [
+            "交易时间",
+            "交易类型",
+            "交易对方",
+            "商品",
+            "收/支",
+            "金额(元)",
+            "支付方式",
+            "交易状态",
+            "交易单号",
+        ],
+        [
+            "2026-01-01 08:00:00",
+            "商户消费",
+            "早餐店",
+            "早餐",
+            "支出",
+            "1",
+            "零钱",
+            "已全额退款",
+            "STATUS-001",
+        ],
+        [
+            "2026-01-01 09:00:00",
+            "商户消费",
+            "午餐店",
+            "午餐",
+            "支出",
+            "2",
+            "零钱",
+            "已退款¥0.56",
+            "STATUS-002",
+        ],
+        [
+            "2026-01-01 10:00:00",
+            "转账",
+            "朋友",
+            "AA",
+            "收入",
+            "3",
+            "零钱",
+            "已存入零钱",
+            "STATUS-003",
+        ],
+        [
+            "2026-01-01 11:00:00",
+            "转账",
+            "朋友",
+            "AA",
+            "收入",
+            "4",
+            "零钱",
+            "对方已收钱",
+            "STATUS-004",
+        ],
+        [
+            "2026-01-01 12:00:00",
+            "转账",
+            "朋友",
+            "AA",
+            "收入",
+            "5",
+            "零钱",
+            "已转账",
+            "STATUS-005",
+        ],
+        [
+            "2026-01-01 13:00:00",
+            "转账",
+            "朋友",
+            "AA",
+            "收入",
+            "6",
+            "零钱",
+            "已收钱",
+            "STATUS-006",
+        ],
+    ]
+
+    report = parse_wechat_rows(rows, encoding="synthetic", format="csv")
+
+    assert report.success_rows == 6
+    assert not report.error_rows
+    assert [record.status for record in report.records] == [
+        "refunded",
+        "refunded",
+        "success",
+        "success",
+        "success",
+        "success",
+    ]
