@@ -76,7 +76,7 @@ def _client(engine):
 
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[owner_context] = lambda: "api-stats-owner"
-    return TestClient(app)
+    return TestClient(app, backend_options={"use_uvloop": True})
 
 
 def test_stats_api_exposes_all_stage3_groups(tmp_path):

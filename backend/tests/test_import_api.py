@@ -65,7 +65,7 @@ def test_import_and_transaction_api_contract(sample_dir, tmp_path):
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[owner_context] = lambda: "api-owner"
     try:
-        client = TestClient(app)
+        client = TestClient(app, backend_options={"use_uvloop": True})
         content = (Path(sample_dir) / "wechat_sample_utf8.csv").read_bytes()
         response = client.post(
             "/api/v1/imports",
@@ -116,7 +116,7 @@ def test_xlsx_upload_infers_format(tmp_path):
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[owner_context] = lambda: "xlsx-api-owner"
     try:
-        response = TestClient(app).post(
+        response = TestClient(app, backend_options={"use_uvloop": True}).post(
             "/api/v1/imports",
             files={
                 "file": (
