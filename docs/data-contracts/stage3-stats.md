@@ -23,13 +23,16 @@
 | --- | --- | --- | --- |
 | `status=success` 且方向为支出/收入 | 纳入对应方向 | 纳入 | - |
 | `status=success` 且方向为转账 | 不纳入收支和净流量 | 纳入 | `transfer_count` |
-| `status=refunded` | 按退款回款计入收入 | 纳入 | `refund_count`、`refund_minor` |
+| `status=refunded` 且方向为支出 | 保留原始消费，计入支出毛额 | 纳入 | - |
+| `status=refunded` 且方向为收入 | 按退款回款计入收入 | 纳入 | `refund_count`、`refund_minor` |
 | `failed`、`pending`、`processing`、`unknown` 等 | 排除 | 排除 | `excluded_count` |
 
-退款口径是“现金流口径”：退款行被视为一笔收入，`refund_minor` 是
-`income_minor` 的子集。因此，如果账单同时保留了原始消费和退款行，原始消费仍是支出，
-退款会抵消净流量；退款不会被重复冲减原始支出。预算的 `used_minor` 仍按周期内的
-支出毛额计算，不自动用退款抵扣预算已用额。
+退款口径是“现金流口径”，并兼容微信的成对导出行：微信可能同时保留一条原始消费行
+（`收/支=支出`、状态为退款）和一条实际退款回款行（`收/支=收入`、状态为退款）。
+原始消费行仍计入支出毛额，只有收入方向的退款回款行计入收入；
+`refund_minor` 是这些退款回款行的 `income_minor` 子集。这样部分退款不会把原始消费
+金额误当成回款，也不会重复冲减原始支出。预算的 `used_minor` 仍按周期内的支出毛额
+计算，不自动用退款抵扣预算已用额。
 
 `net_flow_minor = income_minor - expense_minor`。转账不是收入或支出，不影响净流量。
 `transaction_count` 是所有纳入统计的成功/退款/转账记录数量，失败和待处理记录只进入

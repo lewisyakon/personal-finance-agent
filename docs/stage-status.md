@@ -34,11 +34,14 @@ Docker 运行态验收记录：
 
 ## 阶段 3：统计服务与 Dashboard
 
-- 状态：实现完成，待服务器运行态验收；统计 API、统计口径文档、合成数据准确性测试和 Dashboard 已加入。
+- 状态：实现完成，待服务器运行态验收；统计 API、统计口径文档、合成数据准确性测试和
+  ECharts Dashboard 已加入。
 - 范围：确定性 `Stats Service`、汇总/分类/趋势/商户/大额交易/固定可变/预算/环比同比
   API、单币种校验、退款/转账/失败交易和时间边界口径、Dashboard 展示与交易下钻。
 - 约束：前端只消费 API 结果，不重新计算权威统计；金额仍以整数最小货币单位存储；
   统计服务不调用模型；用户人工分类修改后统计即时读取最新分类。
+- 微信兼容规则：交易类型包含“转账”时优先标准化为 `transfer`；退款成对记录中，
+  原始支出保留为支出，收入方向的实际退款行计入 `refund_minor`。
 - 统计口径详见 [`docs/data-contracts/stage3-stats.md`](data-contracts/stage3-stats.md)，
   API 详见 [`docs/api/stage3-stats.md`](api/stage3-stats.md)。
 

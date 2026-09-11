@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -84,7 +83,17 @@ def _period(
 
 
 def _limit(value: int | None, default: int, maximum: int = 100) -> int:
-    return min(maximum, max(1, value if value is not None else default))
+    if value is None:
+        return default
+    if value < 1 or value > maximum:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_LIMIT",
+                "message": f"数量必须在 1 到 {maximum} 之间",
+            },
+        )
+    return value
 
 
 def _budget(value: int | None) -> int | None:
@@ -96,11 +105,20 @@ def _budget(value: int | None) -> int | None:
     return value
 
 
+def _threshold(value: int) -> int:
+    if value < 0:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_THRESHOLD", "message": "大额交易阈值不能为负数"},
+        )
+    return value
+
+
 @router.get("/summary", response_model=StatsSummary)
 def summary(
     date_from: str | None = Query(default=None, alias="from"),
     date_to: str | None = Query(default=None, alias="to"),
-    budget_minor: int | None = Query(default=None, ge=0),
+    budget_minor: int | None = Query(default=None),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> StatsSummary:
@@ -111,7 +129,7 @@ def summary(
 def categories(
     date_from: str | None = Query(default=None, alias="from"),
     date_to: str | None = Query(default=None, alias="to"),
-    direction: Literal["expense", "income"] = Query(default="expense"),
+    direction: str = Query(default="expense"),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> CategoryBreakdown:
@@ -122,7 +140,7 @@ def categories(
 def trend(
     date_from: str | None = Query(default=None, alias="from"),
     date_to: str | None = Query(default=None, alias="to"),
-    granularity: Literal["day", "week", "month", "year"] = Query(default="month"),
+    granularity: str = Query(default="month"),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> TrendResponse:
@@ -133,8 +151,8 @@ def trend(
 def merchants(
     date_from: str | None = Query(default=None, alias="from"),
     date_to: str | None = Query(default=None, alias="to"),
-    direction: Literal["expense", "income"] = Query(default="expense"),
-    limit: int = Query(default=10, ge=1, le=100),
+    direction: str = Query(default="expense"),
+    limit: int = Query(default=10),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> MerchantRanking:
@@ -151,9 +169,9 @@ def merchants(
 def large_transactions(
     date_from: str | None = Query(default=None, alias="from"),
     date_to: str | None = Query(default=None, alias="to"),
-    threshold_minor: int = Query(default=10_000, ge=0),
-    limit: int = Query(default=20, ge=1, le=100),
-    direction: Literal["expense", "income"] = Query(default="expense"),
+    threshold_minor: int = Query(default=10_000),
+    limit: int = Query(default=20),
+    direction: str = Query(default="expense"),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> LargeTransactionResponse:
@@ -161,7 +179,7 @@ def large_transactions(
         db,
         owner_id,
         _period(date_from, date_to),
-        threshold_minor,
+        _threshold(threshold_minor),
         _limit(limit, 20),
         direction,
     )
@@ -179,13 +197,14 @@ def fixed_variable(
 
 @router.get("/budget", response_model=BudgetResponse)
 def budget(
-    budget_minor: int = Query(..., ge=0),
+    budget_minor: int = Query(...),
     date_from: str | None = Query(default=None, alias="from"),
     date_to: str | None = Query(default=None, alias="to"),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> BudgetResponse:
     period = _period(date_from, date_to)
+    _budget(budget_minor)
     result = get_budget_status(db, owner_id, period, budget_minor)
     return BudgetResponse(period=period_response(period), budget=result)
 
@@ -196,9 +215,9 @@ def comparison(
     date_to: str | None = Query(default=None, alias="to"),
     comparison_from: str | None = Query(default=None, alias="compare_from"),
     comparison_to: str | None = Query(default=None, alias="compare_to"),
-    mode: Literal["previous", "yoy"] = Query(default="previous"),
-    budget_minor: int | None = Query(default=None, ge=0),
-    comparison_budget_minor: int | None = Query(default=None, ge=0),
+    mode: str = Query(default="previous"),
+    budget_minor: int | None = Query(default=None),
+    comparison_budget_minor: int | None = Query(default=None),
     db: Session = Depends(get_db),
     owner_id: str = Depends(owner_context),
 ) -> ComparisonResponse:

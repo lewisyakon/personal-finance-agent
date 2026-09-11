@@ -136,13 +136,24 @@ def _seed(engine):
         )
         add(
             occurred_at=_at(20),
-            amount_minor=2000,
+            amount_minor=500,
             direction="expense",
             status="refunded",
             merchant="退款店",
             description="退款",
             platform_category="购物",
             source_row=6,
+        )
+        # WeChat exports the actual refund receipt as a separate income row.
+        add(
+            occurred_at=_at(20, hour=12, minute=1),
+            amount_minor=500,
+            direction="income",
+            status="refunded",
+            merchant="退款店",
+            description="退款回款",
+            platform_category="购物",
+            source_row=15,
         )
         add(
             occurred_at=_at(25),
@@ -237,18 +248,18 @@ def test_summary_has_explicit_refund_transfer_failure_and_boundary_semantics(tmp
         result = get_summary(db, "owner-a", _period())
 
     assert result.currency == "CNY"
-    assert result.expense_minor == 7700
-    assert result.income_minor == 12000
-    assert result.refund_minor == 2000
-    assert result.net_flow_minor == 4300
-    assert result.expense_count == 6
+    assert result.expense_minor == 8200
+    assert result.income_minor == 10500
+    assert result.refund_minor == 500
+    assert result.net_flow_minor == 2300
+    assert result.expense_count == 7
     assert result.income_count == 2
     assert result.transfer_count == 1
-    assert result.transaction_count == 9
+    assert result.transaction_count == 10
     assert result.refund_count == 1
     assert result.excluded_count == 1
     assert result.fixed_expense_minor == 5300
-    assert result.variable_expense_minor == 2400
+    assert result.variable_expense_minor == 2900
 
 
 def test_category_update_is_reflected_without_reimport(tmp_path):
@@ -298,16 +309,16 @@ def test_trend_merchant_large_fixed_variable_and_budget(tmp_path):
     assert len(trends["day"].items) == 31
     assert len(trends["month"].items) == 1
     assert len(trends["year"].items) == 1
-    assert sum(item.expense_minor for item in trends["week"].items) == 7700
+    assert sum(item.expense_minor for item in trends["week"].items) == 8200
     assert merchants.items[0].merchant == "房东"
     assert [item.amount_minor for item in large.items] == [5000, 1200]
     assert large.direction == "expense"
     assert fixed.fixed_minor == 5300
-    assert fixed.variable_minor == 2400
-    assert budget.used_minor == 7700
+    assert fixed.variable_minor == 2900
+    assert budget.used_minor == 8200
     assert budget.remaining_minor == 0
-    assert budget.over_budget_minor == 1700
-    assert budget.utilization_percent == pytest.approx(128.33)
+    assert budget.over_budget_minor == 2200
+    assert budget.utilization_percent == pytest.approx(136.67)
 
 
 def test_income_large_transactions_can_be_requested_explicitly(tmp_path):
@@ -324,7 +335,7 @@ def test_income_large_transactions_can_be_requested_explicitly(tmp_path):
         )
 
     assert result.direction == "income"
-    assert [item.amount_minor for item in result.items] == [10000, 2000]
+    assert [item.amount_minor for item in result.items] == [10000]
     assert all(item.direction == "income" for item in result.items)
 
 
@@ -337,10 +348,10 @@ def test_comparison_supports_previous_period_and_yoy(tmp_path):
         yoy = compare_periods(db, "owner-a", yoy_period, mode="yoy")
 
     assert previous.comparison.expense_minor == 4000
-    assert previous.metrics["expense_minor"].delta == 3700
+    assert previous.metrics["expense_minor"].delta == 4200
     assert previous.comparison.income_minor == 8000
     assert yoy.comparison.expense_minor == 2500
-    assert yoy.metrics["refund_minor"].current == 2000
+    assert yoy.metrics["refund_minor"].current == 500
 
 
 def test_owner_isolation_and_multi_currency_validation(tmp_path):
@@ -348,7 +359,7 @@ def test_owner_isolation_and_multi_currency_validation(tmp_path):
     _seed(engine)
     with Session(engine) as db:
         result = get_summary(db, "owner-a", _period())
-        assert result.expense_minor == 7700
+        assert result.expense_minor == 8200
 
         transaction = db.scalar(
             select(Transaction).where(

@@ -51,7 +51,11 @@ def _xlsx_content() -> bytes:
 
 
 def test_import_and_transaction_api_contract(sample_dir, tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'api.db'}", future=True)
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'api.db'}",
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
     Base.metadata.create_all(engine)
 
     def override_db():
@@ -82,6 +86,9 @@ def test_import_and_transaction_api_contract(sample_dir, tmp_path):
         transactions = client.get("/api/v1/transactions?direction=expense&page_size=2")
         assert transactions.status_code == 200
         assert transactions.json()["total"] == 2
+        transfers = client.get("/api/v1/transactions?direction=transfer")
+        assert transfers.status_code == 200
+        assert transfers.json()["total"] == 1
         transaction_id = transactions.json()["items"][0]["id"]
 
         changed = client.patch(
@@ -95,7 +102,11 @@ def test_import_and_transaction_api_contract(sample_dir, tmp_path):
 
 
 def test_xlsx_upload_infers_format(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'xlsx-api.db'}", future=True)
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'xlsx-api.db'}",
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
     Base.metadata.create_all(engine)
 
     def override_db():

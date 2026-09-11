@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import * as echarts from 'echarts'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import {
@@ -42,15 +43,16 @@ const merchants = ref<MerchantRanking | null>(null)
 const largeTransactions = ref<LargeTransactionResponse | null>(null)
 const fixedVariable = ref<FixedVariableBreakdown | null>(null)
 const comparison = ref<ComparisonResponse | null>(null)
+const trendChartElement = ref<HTMLElement | null>(null)
+const categoryChartElement = ref<HTMLElement | null>(null)
+let trendChart: echarts.ECharts | null = null
+let categoryChart: echarts.ECharts | null = null
 
 const formatter = new Intl.NumberFormat('zh-CN', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
 
-const maxTrendExpense = computed(() =>
-  Math.max(1, ...((trend.value?.items ?? []).map((item) => item.expense_minor))),
-)
 const maxCategoryAmount = computed(() =>
   Math.max(1, ...((categories.value?.items ?? []).map((item) => item.amount_minor))),
 )
@@ -132,7 +134,113 @@ function dateLabel(value: string): string {
   return new Date(value).toLocaleDateString()
 }
 
-onMounted(refresh)
+function disposeCharts(): void {
+  trendChart?.dispose()
+  categoryChart?.dispose()
+  trendChart = null
+  categoryChart = null
+}
+
+function renderCharts(): void {
+  const trendData = trend.value
+  const categoryData = categories.value
+
+  if (trendChartElement.value && trendData && trendData.items.length) {
+    trendChart?.dispose()
+    trendChart = echarts.init(trendChartElement.value, undefined, {
+      renderer: 'svg',
+      width: trendChartElement.value.clientWidth || 640,
+      height: 280,
+    })
+    trendChart.setOption({
+      animation: false,
+      grid: { left: 56, right: 24, top: 18, bottom: 42 },
+      tooltip: {
+        trigger: 'axis',
+        valueFormatter: (value: number) =>
+          `${(value / 100).toFixed(2)} ${trendData.currency}`,
+      },
+      xAxis: {
+        type: 'category',
+        data: trendData.items.map((item) => item.label),
+        axisLabel: { rotate: trendData.items.length > 14 ? 35 : 0 },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: {
+          formatter: (value: number) => `${(value / 100).toFixed(0)}`,
+        },
+      },
+      series: [
+        {
+          name: '支出',
+          type: 'bar',
+          data: trendData.items.map((item) => item.expense_minor),
+          itemStyle: { color: '#ef4444', borderRadius: [4, 4, 0, 0] },
+          barMaxWidth: 28,
+        },
+      ],
+    })
+  } else {
+    trendChart?.dispose()
+    trendChart = null
+  }
+
+  if (categoryChartElement.value && categoryData && categoryData.items.length) {
+    categoryChart?.dispose()
+    categoryChart = echarts.init(categoryChartElement.value, undefined, {
+      renderer: 'svg',
+      width: categoryChartElement.value.clientWidth || 480,
+      height: 280,
+    })
+    categoryChart.setOption({
+      animation: false,
+      tooltip: {
+        trigger: 'item',
+        valueFormatter: (value: number) =>
+          `${(value / 100).toFixed(2)} ${categoryData.currency}`,
+      },
+      legend: { type: 'scroll', bottom: 0 },
+      series: [
+        {
+          name: '支出类别',
+          type: 'pie',
+          radius: ['38%', '68%'],
+          center: ['50%', '44%'],
+          avoidLabelOverlap: true,
+          itemStyle: { borderColor: '#fff', borderWidth: 2 },
+          data: categoryData.items.slice(0, 8).map((item) => ({
+            name: item.category,
+            value: item.amount_minor,
+          })),
+        },
+      ],
+    })
+  } else {
+    categoryChart?.dispose()
+    categoryChart = null
+  }
+}
+
+function resizeCharts(): void {
+  trendChart?.resize()
+  categoryChart?.resize()
+}
+
+watch([trend, categories], () => {
+  void nextTick(renderCharts)
+})
+
+onMounted(async () => {
+  await refresh()
+  await nextTick(renderCharts)
+  window.addEventListener('resize', resizeCharts)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', resizeCharts)
+  disposeCharts()
+})
 </script>
 
 <template>
@@ -218,14 +326,15 @@ onMounted(refresh)
           </div>
           <span class="muted">{{ trend?.items.length || 0 }} 个时间桶</span>
         </div>
-        <div v-if="trend?.items.length" class="trend-bars">
-          <div v-for="item in trend.items" :key="item.bucket_start" class="trend-row">
-            <span>{{ item.label.slice(5) }}</span>
-            <div class="bar-track">
-              <div class="bar-fill expense-bg" :style="{ width: `${(item.expense_minor / maxTrendExpense) * 100}%` }" />
-            </div>
-            <strong>{{ money(item.expense_minor, trend.currency) }}</strong>
-          </div>
+        <div
+          v-if="trend?.items.length"
+          ref="trendChartElement"
+          class="chart chart-trend"
+          aria-label="每日支出趋势图"
+        />
+        <div v-if="trend?.items.length" class="chart-summary">
+          <span>金额由后端以最小单位传输，坐标轴显示元</span>
+          <span>趋势数据来自后端 Stats Service</span>
         </div>
         <p v-else class="muted empty">当前周期没有趋势数据。</p>
       </article>
@@ -237,6 +346,12 @@ onMounted(refresh)
             <h2 id="category-title">支出类别构成</h2>
           </div>
         </div>
+        <div
+          v-if="categories?.items.length"
+          ref="categoryChartElement"
+          class="chart chart-category"
+          aria-label="支出类别构成图"
+        />
         <div v-if="categories?.items.length" class="rank-list">
           <div v-for="item in categories.items.slice(0, 8)" :key="item.category" class="rank-row">
             <div>
@@ -391,14 +506,13 @@ button:disabled { opacity: .6; cursor: wait; }
 .panel-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .budget-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .budget-grid div, .split-grid div { padding: 14px; border-radius: 12px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px; }
-.progress-track, .bar-track, .mini-track { overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.progress-track, .mini-track { overflow: hidden; border-radius: 999px; background: #e2e8f0; }
 .progress-track { height: 10px; margin-top: 16px; }
-.progress-fill, .bar-fill, .mini-fill { height: 100%; border-radius: inherit; transition: width .2s ease; }
+.progress-fill, .mini-fill { height: 100%; border-radius: inherit; transition: width .2s ease; }
 .progress-fill, .mini-fill { background: #2563eb; }
-.progress-fill.over, .expense-bg { background: #ef4444; }
-.trend-bars { display: grid; gap: 9px; max-height: 360px; overflow: auto; padding-right: 4px; }
-.trend-row { display: grid; grid-template-columns: 62px 1fr 120px; gap: 10px; align-items: center; font-size: 13px; }
-.bar-track { height: 10px; }
+.progress-fill.over { background: #ef4444; }
+.chart { width: 100%; height: 280px; }
+.chart-summary { display: flex; justify-content: space-between; gap: 12px; color: #64748b; font-size: 12px; }
 .rank-list { display: grid; gap: 12px; }
 .rank-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; color: inherit; text-decoration: none; }
 .rank-row p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
@@ -416,7 +530,5 @@ th { color: #64748b; font-weight: 600; }
 .empty { text-align: center; padding: 28px; }
 @media (max-width: 800px) {
   .dashboard-grid { grid-template-columns: 1fr; }
-  .trend-row { grid-template-columns: 56px 1fr; }
-  .trend-row strong { grid-column: 2; }
 }
 </style>

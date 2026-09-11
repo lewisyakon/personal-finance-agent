@@ -118,6 +118,14 @@ vi.mock('../src/api/stats', () => ({
   }),
 }))
 
+vi.mock('echarts', () => ({
+  init: vi.fn(() => ({
+    setOption: vi.fn(),
+    dispose: vi.fn(),
+    resize: vi.fn(),
+  })),
+}))
+
 describe('stage 3 dashboard', () => {
   it('renders backend-provided statistics and drill-down links', async () => {
     const router = createRouter({
@@ -136,6 +144,8 @@ describe('stage 3 dashboard', () => {
     expect(wrapper.text()).toContain('123.45 CNY')
     expect(wrapper.text()).toContain('示例商户')
     expect(wrapper.text()).toContain('预算状态')
+    expect(wrapper.find('.chart-trend').exists()).toBe(true)
+    expect(wrapper.find('.chart-category').exists()).toBe(true)
     const links = wrapper.findAll('a').map((link) => link.attributes('href') || '')
     expect(links.some((href) => href.startsWith('/transactions?merchant='))).toBe(true)
   })

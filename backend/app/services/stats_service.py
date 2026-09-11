@@ -40,6 +40,7 @@ from app.schemas.stats import (
 )
 
 StatsDirection = Literal["expense", "income"]
+StatsGranularity = Literal["day", "week", "month", "year"]
 
 _VALID_STATUSES = {"success", "refunded"}
 _FIXED_KEYWORDS = (
@@ -162,10 +163,14 @@ def _effective_kind(item: Transaction) -> str:
 
     if item.status not in _VALID_STATUSES:
         return "excluded"
-    # A refunded row represents money flowing back to the owner, even if the
-    # source platform retained the original expense direction.
+    # WeChat commonly exports a refunded expense row together with a separate
+    # refund receipt row.  Preserve the original expense direction and count
+    # only the receipt row as refund income; otherwise the original purchase
+    # would disappear from spending and the refund could be double-counted.
     if item.status == "refunded":
-        return "income"
+        if item.direction in {"expense", "income", "transfer"}:
+            return item.direction
+        return "excluded"
     if item.direction == "transfer":
         return "transfer"
     if item.direction in {"expense", "income"}:
@@ -174,13 +179,19 @@ def _effective_kind(item: Transaction) -> str:
 
 
 def _is_refund(item: Transaction) -> bool:
-    return item.status == "refunded"
+    return item.status == "refunded" and item.direction == "income"
 
 
 def _validate_direction(direction: str) -> StatsDirection:
     if direction not in {"expense", "income"}:
         raise StatsServiceError("方向必须是 expense 或 income")
     return cast(StatsDirection, direction)
+
+
+def _validate_granularity(granularity: str) -> StatsGranularity:
+    if granularity not in {"day", "week", "month", "year"}:
+        raise StatsServiceError("统计粒度必须是 day、week、month 或 year")
+    return cast(StatsGranularity, granularity)
 
 
 def _category_parts(item: Transaction) -> tuple[str, str | None]:
@@ -407,8 +418,9 @@ def get_trend(
     db: Session,
     owner_id: str,
     period: Period,
-    granularity: Literal["day", "week", "month", "year"] = "month",
+    granularity: StatsGranularity = "month",
 ) -> TrendResponse:
+    granularity = _validate_granularity(granularity)
     transactions = _load_transactions(db, owner_id, period)
     timezone = ZoneInfo(get_settings().app_timezone)
     first_bucket = _bucket_start(period.start, granularity)

@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
@@ -80,21 +81,35 @@ def _parse_datetime(value: object | None) -> datetime:
     raise ValueError(f"交易时间格式无效: {value!r}")
 
 
-def _direction(value: str) -> str:
-    normalized = _clean(value)
+def _direction(value: str, transaction_type: str = "") -> str:
+    """Normalize WeChat's direction using both columns.
+
+    WeChat exports ordinary transfers with ``收/支=收入`` or ``支出``.
+    Looking at that column alone therefore turns a transfer into cash flow.
+    The transaction type is the authoritative discriminator when it contains
+    ``转账``.  Refund rows are kept as income when the export marks them as
+    receipts; an original expense row can remain an expense and be paired with
+    a separate refund receipt row.
+    """
+
+    normalized = _clean(value).replace(" ", "")
+    type_normalized = _clean(transaction_type).replace(" ", "")
+
+    if "退款" not in type_normalized and "转账" in type_normalized:
+        return "transfer"
+    if normalized in {"转账", "不计收支", "其他"}:
+        return "transfer"
     if normalized in {"支出", "付款", "消费"}:
         return "expense"
     if normalized in {"收入", "收款", "退款"}:
         return "income"
-    if normalized in {"不计收支", "转账", "其他"}:
-        return "transfer"
     if not normalized:
         return "unknown"
     return "unknown"
 
 
 def _status(value: str) -> str:
-    normalized = _clean(value)
+    normalized = _clean(value).replace(" ", "")
     if normalized in {"支付成功", "交易成功", "成功"}:
         return "success"
     # WeChat exports several successful receipt/transfer labels depending on
@@ -104,11 +119,8 @@ def _status(value: str) -> str:
     # Refund rows may include the refunded amount in the status, for example
     # ``已退款¥0.56`` or ``已退款(¥0.56)``. Treat all completed refund labels
     # as refunded rather than silently excluding them from later statistics.
-    if (
-        normalized in {"已退款", "已全额退款", "退款成功", "退款"}
-        or normalized.startswith("已退款¥")
-        or normalized.startswith("已退款(")
-        or normalized.startswith("已全额退款")
+    if normalized in {"已退款", "已全额退款", "退款成功", "退款"} or re.match(
+        r"^已(?:全额)?退款(?:[¥￥].*|[（(].*[）)]|.*)$", normalized
     ):
         return "refunded"
     if normalized in {"支付失败", "交易失败", "失败"}:
@@ -205,12 +217,14 @@ def _record(
 ) -> TransactionRecord:
     type_value = _cell(row, columns["type"])
     description = _cell(row, columns["description"])
+    direction_value = _cell(row, columns["direction"])
+    status_value = _cell(row, columns["status"])
     return TransactionRecord(
         platform="wechat",
         occurred_at=_parse_datetime(_cell(row, columns["occurred_at"])),
-        direction=_direction(_cell(row, columns["direction"])),
+        direction=_direction(direction_value, type_value),
         amount_minor=_parse_amount(_cell(row, columns["amount"])),
-        status=_status(_cell(row, columns["status"])),
+        status=_status(status_value),
         merchant=_cell(row, columns["merchant"]),
         description=description or type_value,
         payment_method=_cell(row, columns["payment_method"]),

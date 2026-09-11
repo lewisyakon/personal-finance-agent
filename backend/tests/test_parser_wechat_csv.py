@@ -18,7 +18,7 @@ def test_wechat_csv_golden_sample(sample_dir):
     assert report.records[0].amount_minor == 1250
     assert report.records[0].direction == "expense"
     assert report.records[0].occurred_at.tzinfo is not None
-    assert report.records[2].direction == "income"
+    assert report.records[2].direction == "transfer"
 
 
 def test_parser_reports_bad_rows(sample_dir):
@@ -100,7 +100,7 @@ def test_wechat_xlsx_parser_reads_excel_cells(tmp_path):
     assert report.records[0].direction == "expense"
     assert report.records[0].status == "success"
     assert report.records[1].amount_minor == 5000
-    assert report.records[1].direction == "income"
+    assert report.records[1].direction == "transfer"
 
 
 def test_wechat_status_variants_are_normalized_deterministically():
@@ -182,11 +182,22 @@ def test_wechat_status_variants_are_normalized_deterministically():
             "已收钱",
             "STATUS-006",
         ],
+        [
+            "2026-01-01 14:00:00",
+            "商户消费-退款",
+            "午餐店",
+            "退款回款",
+            "收入",
+            "0.56",
+            "零钱",
+            "已退款¥0.56",
+            "STATUS-007",
+        ],
     ]
 
     report = parse_wechat_rows(rows, encoding="synthetic", format="csv")
 
-    assert report.success_rows == 6
+    assert report.success_rows == 7
     assert not report.error_rows
     assert [record.status for record in report.records] == [
         "refunded",
@@ -195,4 +206,14 @@ def test_wechat_status_variants_are_normalized_deterministically():
         "success",
         "success",
         "success",
+        "refunded",
+    ]
+    assert [record.direction for record in report.records] == [
+        "expense",
+        "expense",
+        "transfer",
+        "transfer",
+        "transfer",
+        "transfer",
+        "income",
     ]

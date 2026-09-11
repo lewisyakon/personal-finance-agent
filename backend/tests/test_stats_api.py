@@ -15,7 +15,11 @@ TZ = ZoneInfo("Asia/Shanghai")
 
 
 def _seed_api_database(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'stats-api.db'}", future=True)
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'stats-api.db'}",
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
     Base.metadata.create_all(engine)
     with Session(engine) as db:
         db.add(
@@ -34,7 +38,8 @@ def _seed_api_database(tmp_path):
             ("2026-01-03T10:00:00", 1200, "expense", "早餐店", "餐饮/早餐", "success"),
             ("2026-01-05T10:00:00", 5000, "expense", "房东", "住房/房租", "success"),
             ("2026-01-10T10:00:00", 10000, "income", "公司", "收入/工资", "success"),
-            ("2026-01-20T10:00:00", 2000, "expense", "退款店", "购物", "refunded"),
+            ("2026-01-20T10:00:00", 500, "expense", "退款店", "购物", "refunded"),
+            ("2026-01-20T10:01:00", 500, "income", "退款店", "购物", "refunded"),
             ("2026-01-25T10:00:00", 700, "expense", "景区", "旅行/交通", "success"),
             ("2026-01-31T23:59:59", 400, "expense", "月底商户", "其他", "success"),
             ("2026-02-01T00:00:00", 900, "expense", "二月商户", "其他", "success"),
@@ -89,8 +94,10 @@ def test_stats_api_exposes_all_stage3_groups(tmp_path):
         comparison = client.get(f"/api/v1/stats/comparison?{query}&mode=previous")
 
         assert summary.status_code == 200
-        assert summary.json()["expense_minor"] == 7300
-        assert summary.json()["budget"]["over_budget_minor"] == 1300
+        assert summary.json()["expense_minor"] == 7800
+        assert summary.json()["income_minor"] == 10500
+        assert summary.json()["refund_minor"] == 500
+        assert summary.json()["budget"]["over_budget_minor"] == 1800
         assert categories.status_code == 200
         assert categories.json()["items"][0]["category"] == "住房/房租"
         assert trend.status_code == 200
@@ -104,7 +111,7 @@ def test_stats_api_exposes_all_stage3_groups(tmp_path):
         assert fixed.json()["fixed_minor"] == 5000
         assert budget.status_code == 200
         assert budget.json()["period"]["timezone"] == "Asia/Shanghai"
-        assert budget.json()["budget"]["used_minor"] == 7300
+        assert budget.json()["budget"]["used_minor"] == 7800
         assert comparison.status_code == 200
         assert comparison.json()["comparison_mode"] == "previous"
     finally:
@@ -141,5 +148,36 @@ def test_stats_api_validates_period_and_multi_currency(tmp_path):
         multi_currency = client.get("/api/v1/stats/summary?from=2026-01-01&to=2026-02-01")
         assert multi_currency.status_code == 400
         assert multi_currency.json()["detail"]["code"] == "STATS_VALIDATION_ERROR"
+
+        invalid_direction = client.get(
+            "/api/v1/stats/categories?from=2026-01-01&to=2026-02-01&direction=sideways"
+        )
+        assert invalid_direction.status_code == 400
+        assert invalid_direction.json()["detail"]["code"] == "STATS_VALIDATION_ERROR"
+
+        invalid_granularity = client.get(
+            "/api/v1/stats/trend?from=2026-01-01&to=2026-02-01&granularity=quarter"
+        )
+        assert invalid_granularity.status_code == 400
+        assert invalid_granularity.json()["detail"]["code"] == "STATS_VALIDATION_ERROR"
+
+        invalid_budget = client.get(
+            "/api/v1/stats/summary?from=2026-01-01&to=2026-02-01&budget_minor=-1"
+        )
+        assert invalid_budget.status_code == 400
+        assert invalid_budget.json()["detail"]["code"] == "INVALID_BUDGET"
+
+        invalid_threshold = client.get(
+            "/api/v1/stats/large-transactions?"
+            "from=2026-01-01&to=2026-02-01&threshold_minor=-1"
+        )
+        assert invalid_threshold.status_code == 400
+        assert invalid_threshold.json()["detail"]["code"] == "INVALID_THRESHOLD"
+
+        invalid_mode = client.get(
+            "/api/v1/stats/comparison?from=2026-01-01&to=2026-02-01&mode=quarter"
+        )
+        assert invalid_mode.status_code == 400
+        assert invalid_mode.json()["detail"]["code"] == "STATS_VALIDATION_ERROR"
     finally:
         app.dependency_overrides.clear()

@@ -11,6 +11,8 @@
 - `amount_minor` 是整数（例如人民币 12.50 元保存为 `1250`）。
 - `occurred_at` 由 Parser 解析为带 `Asia/Shanghai` 时区的时间，入库转换为 UTC；SQLite 物理值不带 offset，但 ORM 读取时恢复为带 UTC offset 的时间。
 - `direction`、`status` 使用 Parser 的固定枚举值。
+- 微信交易类型包含“转账”时，`direction` 优先标准化为 `transfer`，不受“收/支”列
+  显示为收入或支出的影响；“转账-退款”等退款类型仍结合收/支列判断现金流方向。
 - 微信导出的终态变体会统一映射：`已存入零钱`、`对方已收钱`、`已转账` 和 `已收钱`
   映射为 `success`；`已全额退款`、`已退款¥金额` 和 `已退款(¥金额)` 等已完成退款
   映射为 `refunded`。同一文件的 SHA-256 幂等复用不会触发重新解析；若 Parser 规则升级，
