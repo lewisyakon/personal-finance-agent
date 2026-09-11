@@ -2,11 +2,15 @@
 
 ## 当前阶段
 
-阶段 0、阶段 1 和阶段 2 已完成实现。阶段 2 的本次变更集中在导入、去重与交易管理；一次只实施一个阶段。
+阶段 0、阶段 1 和阶段 2 已完成实现；当前正在收尾阶段 3（统计服务与 Dashboard）。
+阶段 3 的变更集中在确定性统计、统计 API、统计口径文档、合成核对夹具和 Vue Dashboard；
+一次只实施一个阶段。
 
 ## 允许修改范围
 
-当前阶段允许修改工程基线、微信 CSV Parser、导入/交易 Service、API、Vue 导入与交易页面、测试、文档和示例数据。不得加入真实账单、微信登录、自动账户连接、Redis、Celery、Kubernetes 或未评测的 Agent。
+当前阶段允许修改工程基线、微信 CSV/XLSX Parser、导入/交易/统计 Service、API、Vue 导入、
+交易与 Dashboard 页面、测试、文档和合成示例数据。不得加入真实账单、微信登录、自动账户
+连接、Redis、Celery、Kubernetes 或未评测的 Agent。
 
 ## 约束
 
@@ -23,3 +27,6 @@
 cd backend && pytest && ruff check app tests
 cd ../frontend && npm run typecheck && npm test && npm run build
 ```
+
+阶段 3 还应执行前端 lint；服务器上使用 Docker 时，应以临时 `PFA_DATA_DIR` 完成后端
+测试和统计 API 运行态冒烟，避免触碰真实账本目录。

@@ -179,5 +179,24 @@ def test_stats_api_validates_period_and_multi_currency(tmp_path):
         )
         assert invalid_mode.status_code == 400
         assert invalid_mode.json()["detail"]["code"] == "STATS_VALIDATION_ERROR"
+
+        invalid_budget_type = client.get(
+            "/api/v1/stats/summary?from=2026-01-01&to=2026-02-01&budget_minor=abc"
+        )
+        assert invalid_budget_type.status_code == 400
+        assert invalid_budget_type.json()["detail"]["code"] == "INVALID_BUDGET"
+
+        invalid_limit_type = client.get(
+            "/api/v1/stats/merchants?from=2026-01-01&to=2026-02-01&limit=abc"
+        )
+        assert invalid_limit_type.status_code == 400
+        assert invalid_limit_type.json()["detail"]["code"] == "INVALID_LIMIT"
+
+        invalid_threshold_type = client.get(
+            "/api/v1/stats/large-transactions?"
+            "from=2026-01-01&to=2026-02-01&threshold_minor=abc"
+        )
+        assert invalid_threshold_type.status_code == 400
+        assert invalid_threshold_type.json()["detail"]["code"] == "INVALID_THRESHOLD"
     finally:
         app.dependency_overrides.clear()

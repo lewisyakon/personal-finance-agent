@@ -57,6 +57,8 @@ curl 'http://127.0.0.1:8000/api/v1/stats/summary?from=2026-01-01&to=2026-02-01'
 
 统计边界、退款、转账、失败交易、多币种和比较定义见
 [`docs/data-contracts/stage3-stats.md`](docs/data-contracts/stage3-stats.md)。
+仓库中的 [`datasets/sanitized_samples/stage3_stats_fixture.csv`](datasets/sanitized_samples/stage3_stats_fixture.csv)
+是可重复导入的合成核对夹具，文档中列出了该夹具的手工期望总数。
 
 ## 阶段 3 验收
 
