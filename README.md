@@ -24,7 +24,7 @@ curl -F 'file=@datasets/sanitized_samples/wechat_sample_utf8.csv' \
 curl -F 'file=@/home/lewis/pfa-validation-data/wechat-2026.xlsx' \
   http://127.0.0.1:8000/api/v1/imports
 curl 'http://127.0.0.1:8000/api/v1/transactions?page=1&page_size=20'
-curl 'http://127.0.0.1:8000/api/v1/stats/summary?from=2026-01-01&to=2026-02-01'
+curl 'http://127.0.0.1:8000/api/v1/stats/summary?from=2026-01-01&to=2026-02-01T00:00:00%2B08:00'
 ```
 
 导入接口根据文件扩展名自动识别 `csv` 或 `xlsx`；也可以显式传 `?format=csv` 或 `?format=xlsx`，但格式必须和文件扩展名一致。接口在本地使用进程内执行器同步完成。每个工作区以 `LOCAL_OWNER_ID` 隔离；交易指纹使用 `FINGERPRINT_SECRET` 计算 HMAC-SHA256，数据库在 owner 范围内建立唯一约束。同一文件的 SHA-256 已存在时直接复用原导入任务，不会重复入账。原始文件只在 `RAW_FILE_TTL_MINUTES` 到期后清理，数据库保留文件摘要和标准化事实。

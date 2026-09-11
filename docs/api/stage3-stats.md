@@ -28,9 +28,9 @@
 
 ```bash
 curl 'http://127.0.0.1:8000/api/v1/stats/summary?from=2026-01-01&to=2026-01-31'
-curl 'http://127.0.0.1:8000/api/v1/stats/trend?from=2026-01-01&to=2026-02-01&granularity=day'
-curl 'http://127.0.0.1:8000/api/v1/stats/categories?from=2026-01-01&to=2026-02-01&direction=expense'
-curl 'http://127.0.0.1:8000/api/v1/stats/budget?from=2026-01-01&to=2026-02-01&budget_minor=500000'
+curl 'http://127.0.0.1:8000/api/v1/stats/trend?from=2026-01-01&to=2026-02-01T00:00:00%2B08:00&granularity=day'
+curl 'http://127.0.0.1:8000/api/v1/stats/categories?from=2026-01-01&to=2026-02-01T00:00:00%2B08:00&direction=expense'
+curl 'http://127.0.0.1:8000/api/v1/stats/budget?from=2026-01-01&to=2026-02-01T00:00:00%2B08:00&budget_minor=500000'
 ```
 
 大额交易、排行和趋势中的列表数量由服务端限制，避免把大量交易行放入页面或未来
