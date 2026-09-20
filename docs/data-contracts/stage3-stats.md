@@ -102,5 +102,5 @@
 
 - `from >= to`、负预算、负大额阈值和不支持的粒度会返回结构化错误。
 - 多币种周期返回 `STATS_VALIDATION_ERROR`，不会随机选择一个币种。
-- 本阶段尚未实现 `evidence_id`；统计工具在阶段 4 接入时必须复用这里的
-  `Stats Service` 和同一套口径。
+- 阶段 4 已实现带 `evidence_id` 的统计 Tool，并直接复用这里的 `Stats Service` 和同一套
+  口径；Tool 合同见 [`stage4-tools.md`](stage4-tools.md)。

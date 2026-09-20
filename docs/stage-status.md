@@ -34,8 +34,8 @@ Docker 运行态验收记录：
 
 ## 阶段 3：统计服务与 Dashboard
 
-- 状态：实现完成，待服务器运行态验收；统计 API、统计口径文档、合成数据准确性测试和
-  ECharts Dashboard 已加入。
+- 状态：实现及本地运行级验收完成；统计 API、统计口径文档、合成数据准确性测试和
+  ECharts Dashboard 已加入，统计准确性门禁已通过。
 - 当前本地验证：后端 `pytest` 21 项通过，Ruff 和 Python 语法检查通过；前端
   `typecheck`、Vitest（2 项）、`build` 和 `lint` 均通过。同步 API 测试客户端使用
   项目已有的 uvloop，避免特定沙箱默认线程桥接不返回。
@@ -57,3 +57,54 @@ Docker 运行态验收记录：
 cd backend && pytest && ruff check app tests
 cd ../frontend && npm run typecheck && npm test && npm run build
 ```
+
+## 阶段 4：受控 Tool
+
+- 状态：实现完成；9 个第一批只读 Tool、OwnerContext 注入、严格参数 Schema、超时、分页、
+  `evidence_id`、持久化 Trace 和 Owner 范围内快照重放已加入。
+- Tool：`get_spending_summary`、`get_category_breakdown`、`get_trend`、
+  `get_top_merchants`、`get_large_transactions`、`search_transactions`、
+  `compare_periods`、`get_budget_status`、`get_merchant_history`。
+- 统计一致性：统计 Tool 直接调用阶段 3 `Stats Service`，不复制统计计算；金额、时间、
+  退款、转账、失败交易和多币种口径保持一致。
+- 隔离与安全：Provider Schema 中没有 `owner_id`；额外 Owner 参数会被拒绝；交易搜索只接受
+  固定筛选条件，不接受 SQL、路径或 URL；Trace 不保存完整账单行或平台交易标识。
+- Evidence：每次成功或失败调用都写入 `tool_traces`，请求/响应分别带 SHA-256 摘要；
+  `evidence_id` 只能由所属 Owner 重放，重放返回调用时的不可变快照。
+- 当前验证：后端 `pytest` 27 项通过，Ruff 通过。新增测试覆盖全部 Tool、Stats Service
+  一致性、分页/结果上限、Owner 越权、结构化错误、超时、Trace 完整性和 evidence 重放；
+  全新 SQLite 的 Alembic `upgrade head` 通过；未改动前端的 `typecheck`、Vitest（2 项）、
+  `build` 和 `lint` 回归通过。
+- 阶段 4 不包含模型、Single-Agent 或公开 Tool HTTP 路由；这些属于阶段 5。
+
+合同详见 [`docs/data-contracts/stage4-tools.md`](data-contracts/stage4-tools.md)，内部调用接口
+详见 [`docs/api/stage4-tools.md`](api/stage4-tools.md)。由 Alembic 管理的数据库升级需执行：
+
+```bash
+cd backend && alembic upgrade head
+```
+
+## 阶段 5：ModelProvider 与 Single-Agent
+
+- 状态：实现完成；Provider、Single-Agent、Agent API、持久化 Trace、数值 grounding 和
+  30 题评测基线已加入。
+- Provider：通过 `LLM_PROVIDER=mock|local|remote` 切换；local 只连回环地址，remote 强制
+  非回环 HTTPS 和 API Key；支持普通消息、Tool calling、JSON Schema 输出、超时、有界重试、
+  取消、健康检查、延迟和 Token 统计。故障显式返回，不静默降级。
+- Single-Agent：LangGraph 执行 `model -> 单个只读 Tool -> model` 有界循环，复用阶段 4 全部
+  9 个 Tool；Owner 由服务端注入。步数、Tool/模型调用数、总时长和 Token 均有限制。
+- Grounding：查账回答必须含成功 evidence；带金额、比例和笔数单位的关键数字必须存在于
+  Tool 结果，否则以 `UNGROUNDED_NUMERIC_CLAIM` 失败并隐藏错误数值。
+- 可观测性：会话、Run、Provider/模型、延迟、Token、选中 Tool、错误码和 evidence 持久化；
+  模型 Trace 不保存完整 prompt、Tool 上下文、API Key 或 reasoning。
+- API：`POST /api/v1/agent/chat`，会话/Run 查询和取消端点；所有数据按 Owner 隔离。
+- 评测：`stage5-v1` 固定 30 题覆盖全部 9 个 Tool，门槛 80%；确定性 mock 编排基线达到
+  100% Tool 选择准确率和 100% evidence 数值准确率。local/remote 模型需用同一命令单独留档。
+- 数据库：迁移 `20260920_0003` 新增 Agent/评测表，并把 Tool Evidence 与 Run 关联。
+- 当前验证：后端 40 项测试与 Ruff 全部通过；Alembic `check` 无待生成操作，完整
+  downgrade/upgrade 往返通过；临时 SQLite 上的状态接口和 Agent 查账运行态冒烟通过；前端
+  typecheck、Vitest（2 项）、build 和 lint 回归通过。
+
+合同详见
+[`docs/data-contracts/stage5-model-agent.md`](data-contracts/stage5-model-agent.md)，HTTP API 详见
+[`docs/api/stage5-agent.md`](api/stage5-agent.md)。

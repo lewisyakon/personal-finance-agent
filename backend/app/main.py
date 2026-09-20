@@ -1,7 +1,11 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.agent.runtime import close_agent_runtime
+from app.api.agent import router as agent_router
 from app.api.imports import router as imports_router
 from app.api.stats import router as stats_router
 from app.api.system import router as system_router
@@ -48,11 +52,22 @@ def create_app() -> FastAPI:
     # completed import, so abandoned uploads do not live indefinitely.
     with SessionLocal() as db:
         cleanup_expired_raw_files(db)
-    app = FastAPI(title="Personal Finance Agent API", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        yield
+        close_agent_runtime()
+
+    app = FastAPI(
+        title="Personal Finance Agent API",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
     app.include_router(system_router, prefix="/api/v1")
     app.include_router(imports_router, prefix="/api/v1")
     app.include_router(transactions_router, prefix="/api/v1")
     app.include_router(stats_router, prefix="/api/v1")
+    app.include_router(agent_router, prefix="/api/v1")
 
     @app.exception_handler(StatsServiceError)
     async def stats_validation_error(_request: Request, exc: StatsServiceError) -> JSONResponse:

@@ -7,6 +7,10 @@
 - 阶段 2：账单导入任务、HMAC 去重、SQLite 交易持久化、分页筛选、交易详情和人工分类审计；前端提供导入记录与交易管理页面。
 - 阶段 3：确定性统计服务、统计 API、统计口径文档和 Dashboard；支持收支汇总、趋势、
   分类构成、商户排行、大额交易、固定/可变支出、预算和环比/同比。
+- 阶段 4：9 个受控只读 Tool、服务端 OwnerContext、严格 Schema、超时与分页、持久化
+  Tool Trace，以及 Owner 范围内的 `evidence_id` 快照重放。
+- 阶段 5：mock/local/remote OpenAI-compatible ModelProvider、有界 LangGraph Single-Agent、
+  会话与运行 API、数值 grounding、最小化模型 Trace，以及固定 30 题评测基线。
 
 当前 Parser 支持微信 CSV 和 XLSX；ZIP 会在脱敏样例确实需要时按阶段扩展。Parser 不调用 LLM。
 
@@ -55,12 +59,52 @@ curl 'http://127.0.0.1:8000/api/v1/stats/summary?from=2026-01-01&to=2026-02-01T0
 - 前端 Dashboard 地址为 `/dashboard`，首页和顶部导航均提供入口。点击大额交易可跳转
   到交易管理页继续查看详情；页面金额只做分到元的显示换算，权威统计来自后端。
 
+阶段 4 Tool：
+
+- 第一批只读 Tool 包含汇总、分类、趋势、商户、大额交易、交易搜索、周期比较、预算状态
+  和商户历史。
+- Tool 在后端内部通过 Registry 和 `ToolExecutor` 调用，不新增公开 Tool HTTP 路由。
+- Owner 只从可信运行时上下文注入，不出现在模型可见的参数 Schema 中。每次调用都生成
+  `evidence_id` 并写入最小化 Trace，结果可在同一 Owner 内校验摘要后重放。
+
+阶段 5 Agent：
+
+- `POST /api/v1/agent/chat` 发起同步查账；会话、运行查询和协作式取消位于
+  `/api/v1/agent/sessions/*`、`/api/v1/agent/runs/*`。
+- `LLM_PROVIDER=mock|local|remote` 通过环境变量切换。local 只允许回环地址；remote 的非
+  回环地址必须是 HTTPS 且必须配置 API Key。服务不可用时明确失败，不静默回退。
+- 模型每轮最多选择一个阶段 4 Tool；金额、数量和比例结论由 Tool evidence 做确定性校验，
+  不通过时返回“无法确定”。模型 Trace 不保存完整 prompt、上下文或 reasoning。
+- 30 题数据集覆盖全部 9 个 Tool，记录 Tool 选择、证据数值、延迟和 Token，默认门槛 80%。
+
+默认 mock 不访问网络，可直接体验基本查账。使用 Ollama 等本地 OpenAI-compatible 服务：
+
+```bash
+export LLM_PROVIDER=local
+export LLM_BASE_URL=http://127.0.0.1:11434/v1
+export LLM_MODEL=your-local-model
+```
+
+使用远程兼容服务：
+
+```bash
+export LLM_PROVIDER=remote
+export LLM_BASE_URL=https://provider.example/v1
+export LLM_MODEL=your-model
+export LLM_API_KEY='read-from-your-secret-manager'
+```
+
 统计边界、退款、转账、失败交易、多币种和比较定义见
 [`docs/data-contracts/stage3-stats.md`](docs/data-contracts/stage3-stats.md)。
+Tool Schema、错误、分页和 evidence 语义见
+[`docs/data-contracts/stage4-tools.md`](docs/data-contracts/stage4-tools.md)。
+ModelProvider、Single-Agent 和评测契约见
+[`docs/data-contracts/stage5-model-agent.md`](docs/data-contracts/stage5-model-agent.md)，Agent API
+见 [`docs/api/stage5-agent.md`](docs/api/stage5-agent.md)。
 仓库中的 [`datasets/sanitized_samples/stage3_stats_fixture.csv`](datasets/sanitized_samples/stage3_stats_fixture.csv)
 是可重复导入的合成核对夹具，文档中列出了该夹具的手工期望总数。
 
-## 阶段 3 验收
+## 阶段 3/4/5 验收
 
 后端测试使用临时数据目录，不会触碰当前的 `pfa-validation-data`。在服务器上执行：
 
@@ -89,7 +133,10 @@ npm run build
 npm run lint
 ```
 
-首次启动会自动创建本地表；生产/升级环境请使用 Alembic：`cd backend && alembic upgrade head`。
+首次启动会自动创建本地表；由 Alembic 管理的生产/升级环境请使用：
+`cd backend && alembic upgrade head`。阶段 4 会新增 `tool_traces` 表；未使用 Alembic 管理的
+本地 MVP 数据库会在启动新版服务时由 `create_all` 补齐新表，并为已有 `tool_traces` 安全
+添加阶段 5 的可空 `run_id`；不要对未 stamp 的既有数据库直接套用初始迁移。
 
 ## 用户目录安装
 

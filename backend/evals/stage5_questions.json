@@ -1,0 +1,44 @@
+{
+  "dataset_version": "stage5-v1",
+  "minimum_pass_rate": 0.8,
+  "cases": [
+    {"id":"summary-01","question":"2026年1月总支出是多少？","expected_tools":["get_spending_summary"],"expected_facts":[{"kind":"minor","value":8200}]},
+    {"id":"summary-02","question":"请汇总2026年1月的收入。","expected_tools":["get_spending_summary"],"expected_facts":[{"kind":"minor","value":10500}]},
+    {"id":"summary-03","question":"2026年1月净流量是多少？","expected_tools":["get_spending_summary"],"expected_facts":[{"kind":"minor","value":2300}]},
+    {"id":"summary-04","question":"2026年1月退款金额是多少？","expected_tools":["get_spending_summary"],"expected_facts":[{"kind":"minor","value":500}]},
+    {"id":"summary-05","question":"2026年1月有多少笔有效交易？","expected_tools":["get_spending_summary"],"expected_facts":[{"kind":"count","value":10}]},
+    {"id":"summary-06","question":"概括2026年1月的收支情况。","expected_tools":["get_spending_summary"],"expected_facts":[{"kind":"minor","value":8200},{"kind":"minor","value":10500}]},
+
+    {"id":"category-01","question":"2026年1月支出分类构成是什么？","expected_tools":["get_category_breakdown"],"expected_facts":[{"kind":"minor","value":5000}]},
+    {"id":"category-02","question":"查看2026年1月收入分类。","expected_tools":["get_category_breakdown"],"expected_facts":[{"kind":"minor","value":10000}]},
+    {"id":"category-03","question":"2026年1月餐饮类别花了多少？","expected_tools":["get_category_breakdown"],"expected_facts":[{"kind":"minor","value":1200}]},
+    {"id":"category-04","question":"分析2026年1月各分类支出构成。","expected_tools":["get_category_breakdown"],"expected_facts":[{"kind":"minor","value":700}]},
+
+    {"id":"trend-01","question":"展示2026年1月每天的收支趋势。","expected_tools":["get_trend"],"expected_facts":[{"kind":"minor","value":1200}]},
+    {"id":"trend-02","question":"展示2026年1月每周的支出走势。","expected_tools":["get_trend"],"expected_facts":[{"kind":"minor","value":5000}]},
+    {"id":"trend-03","question":"展示2026年1月每月的收支趋势。","expected_tools":["get_trend"],"expected_facts":[{"kind":"minor","value":8200}]},
+    {"id":"trend-04","question":"2026年1月的收入走势如何？","expected_tools":["get_trend"],"expected_facts":[{"kind":"minor","value":10500}]},
+
+    {"id":"merchant-01","question":"2026年1月支出商户排行。","expected_tools":["get_top_merchants"],"expected_facts":[{"kind":"minor","value":5000}]},
+    {"id":"merchant-02","question":"2026年1月在哪些商家花得最多？","expected_tools":["get_top_merchants"],"expected_facts":[{"kind":"minor","value":1200}]},
+    {"id":"merchant-03","question":"2026年1月收入商户排行。","expected_tools":["get_top_merchants"],"expected_facts":[{"kind":"minor","value":10000}]},
+
+    {"id":"large-01","question":"列出2026年1月超过10元的大额支出。","expected_tools":["get_large_transactions"],"expected_facts":[{"kind":"minor","value":5000}]},
+    {"id":"large-02","question":"2026年1月有哪些高于40元的支出？","expected_tools":["get_large_transactions"],"expected_facts":[{"kind":"minor","value":5000}]},
+    {"id":"large-03","question":"查询2026年1月超过50元的大额收入。","expected_tools":["get_large_transactions"],"expected_facts":[{"kind":"minor","value":10000}]},
+
+    {"id":"search-01","question":"查找2026年1月的交易明细。","expected_tools":["search_transactions"],"expected_facts":[{"kind":"minor","value":1200}]},
+    {"id":"search-02","question":"2026年1月有哪几笔消费？","expected_tools":["search_transactions"],"expected_facts":[{"kind":"minor","value":5000}]},
+    {"id":"search-03","question":"搜索2026年1月的账单记录。","expected_tools":["search_transactions"],"expected_facts":[{"kind":"minor","value":10000}]},
+    {"id":"search-04","question":"2026年1月交易明细中有多少条记录？","expected_tools":["search_transactions"],"expected_facts":[{"kind":"count","value":11}]},
+
+    {"id":"compare-01","question":"对比2026年1月和前一周期的支出。","expected_tools":["compare_periods"],"expected_facts":[{"kind":"minor","value":8200}]},
+    {"id":"compare-02","question":"比较2026年1月与上个周期的净流量。","expected_tools":["compare_periods"],"expected_facts":[{"kind":"minor","value":2300}]},
+
+    {"id":"budget-01","question":"2026年1月预算60元，预算执行情况怎样？","expected_tools":["get_budget_status"],"expected_facts":[{"kind":"minor","value":2200}]},
+    {"id":"budget-02","question":"按60元预算看2026年1月使用率是多少？","expected_tools":["get_budget_status"],"expected_facts":[{"kind":"percent","value":136.67}]},
+
+    {"id":"history-01","question":"查询2026年1月商户“早餐店”的历史。","expected_tools":["get_merchant_history"],"expected_facts":[{"kind":"minor","value":1200}]},
+    {"id":"history-02","question":"查看2026年1月商户“退款店”的交易历史。","expected_tools":["get_merchant_history"],"expected_facts":[{"kind":"count","value":2}]}
+  ]
+}
