@@ -6,8 +6,10 @@ import hashlib
 import hmac
 import re
 import secrets
+import zipfile
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from io import BytesIO
+from pathlib import Path, PurePosixPath
 from typing import Protocol
 from uuid import uuid4
 
@@ -30,6 +32,14 @@ from app.schemas.transaction import ParseReport, TransactionRecord
 
 _SAFE_FILENAME = re.compile(r"[^\w.\-\u4e00-\u9fff]+", re.UNICODE)
 _SUPPORTED_FORMATS = {"csv", "xlsx"}
+_DISALLOWED_FILE_SIGNATURES = (
+    b"PK\x03\x04",
+    b"PK\x05\x06",
+    b"\xd0\xcf\x11\xe0",
+    b"%PDF",
+    b"\x7fELF",
+)
+_XLSX_REQUIRED_MEMBERS = {"[Content_Types].xml", "xl/workbook.xml"}
 
 
 class ImportExecutor(Protocol):
@@ -69,6 +79,76 @@ def _resolve_format(file_name: str, requested_format: str | None) -> str:
     if normalized != inferred:
         raise ValueError(f"format={normalized} 与文件扩展名 .{inferred} 不一致")
     return normalized
+
+
+def _validate_archive_member(name: str) -> None:
+    normalized = name.replace("\\", "/")
+    path = PurePosixPath(normalized)
+    if path.is_absolute() or ".." in path.parts or normalized.startswith("/"):
+        raise ValueError("XLSX 包含不安全的文件路径")
+
+
+def _validate_xlsx(content: bytes) -> None:
+    settings = get_settings()
+    try:
+        archive = zipfile.ZipFile(BytesIO(content))
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise ValueError("XLSX 文件结构无效") from exc
+    with archive:
+        entries = archive.infolist()
+        if len(entries) > settings.archive_max_entries:
+            raise ValueError("XLSX 文件条目数量超过限制")
+        names: set[str] = set()
+        total_uncompressed = 0
+        for entry in entries:
+            _validate_archive_member(entry.filename)
+            names.add(entry.filename.replace("\\", "/"))
+            if entry.flag_bits & 0x1:
+                raise ValueError("不支持加密 XLSX 文件")
+            if entry.file_size > settings.archive_max_entry_bytes:
+                raise ValueError("XLSX 单个条目解压后超过限制")
+            total_uncompressed += entry.file_size
+            if total_uncompressed > settings.archive_max_uncompressed_bytes:
+                raise ValueError("XLSX 解压后大小超过限制")
+            if entry.file_size and (
+                entry.compress_size == 0
+                or entry.file_size / entry.compress_size
+                > settings.archive_max_compression_ratio
+            ):
+                raise ValueError("XLSX 压缩比异常")
+        if not _XLSX_REQUIRED_MEMBERS.issubset(names):
+            raise ValueError("XLSX 缺少必要工作簿结构")
+
+
+def _validate_upload_content(content: bytes, resolved_format: str) -> None:
+    if resolved_format == "xlsx":
+        _validate_xlsx(content)
+        return
+    if any(content.startswith(signature) for signature in _DISALLOWED_FILE_SIGNATURES):
+        raise ValueError("CSV 文件签名与扩展名不一致")
+
+
+def _safe_raw_file(path_value: str | None) -> Path | None:
+    if not path_value:
+        return None
+    uploads_root = (get_settings().data_dir / "uploads").resolve()
+    try:
+        candidate = Path(path_value).resolve()
+        candidate.relative_to(uploads_root)
+    except (OSError, ValueError):
+        return None
+    return candidate
+
+
+def _delete_raw_file(path_value: str | None) -> bool:
+    path = _safe_raw_file(path_value)
+    if path is None or not path.is_file():
+        return False
+    try:
+        path.unlink()
+    except OSError:
+        return False
+    return True
 
 
 def _normalize_text(value: str) -> str:
@@ -130,9 +210,10 @@ class InProcessImportExecutor:
             if detected_format != bill_import.format:
                 bill_import.format = detected_format
                 self.db.commit()
-            report = parser_registry.parse(
-                Path(bill_import.raw_path), bill_import.source, bill_import.format
-            )
+            raw_file = _safe_raw_file(bill_import.raw_path)
+            if raw_file is None or not raw_file.is_file():
+                raise ValueError("原始文件路径不安全或文件不存在")
+            report = parser_registry.parse(raw_file, bill_import.source, bill_import.format)
             self._persist_report(bill_import, report, owner_id)
         except Exception as exc:  # Keep user-facing error structured and short.
             # A failed insert/commit leaves SQLAlchemy's transaction in a
@@ -229,14 +310,9 @@ def cleanup_expired_raw_files(db: Session) -> int:
     for item in db.scalars(select(BillImport).where(BillImport.raw_path.is_not(None))):
         if item.created_at and (_aware(item.created_at) or cutoff) > cutoff:
             continue
-        path = Path(item.raw_path) if item.raw_path else None
-        if path and path.is_file():
-            try:
-                path.unlink()
-                removed += 1
-                changed = True
-            except OSError:
-                pass
+        if _delete_raw_file(item.raw_path):
+            removed += 1
+            changed = True
         if item.raw_path is not None:
             item.raw_path = None
             changed = True
@@ -263,6 +339,7 @@ def create_import(
         raise ValueError("上传文件超过大小限制")
     safe_name = _safe_filename(file_name)
     resolved_format = _resolve_format(safe_name, format)
+    _validate_upload_content(content, resolved_format)
     digest = hashlib.sha256(content).hexdigest()
     existing = db.scalar(
         select(BillImport).where(BillImport.owner_id == owner_id, BillImport.file_sha256 == digest)
@@ -325,7 +402,9 @@ def import_response(item: BillImport, idempotent_reuse: bool = False) -> BillImp
         created_at=_aware(item.created_at),
         started_at=_aware(item.started_at),
         completed_at=_aware(item.completed_at),
-        raw_file_available=bool(item.raw_path and Path(item.raw_path).is_file()),
+        raw_file_available=bool(
+            (raw_file := _safe_raw_file(item.raw_path)) is not None and raw_file.is_file()
+        ),
         idempotent_reuse=idempotent_reuse,
     )
 
@@ -459,15 +538,7 @@ def delete_import(db: Session, owner_id: str, import_id: str) -> bool:
     item = get_import(db, owner_id, import_id)
     if item is None:
         return False
-    if item.raw_path:
-        path = Path(item.raw_path)
-        if path.is_file():
-            try:
-                path.unlink()
-            except OSError:
-                # Facts can still be removed even if a stale source file is
-                # not currently deletable; startup TTL cleanup will retry.
-                pass
+    _delete_raw_file(item.raw_path)
     db.delete(item)
     db.commit()
     return True

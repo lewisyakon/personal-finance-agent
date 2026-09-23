@@ -3,9 +3,10 @@ from pathlib import Path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from app.agent.multi_agent import MultiAgent
 from app.agent.service import AgentService
 from app.core.config import Settings, get_settings
-from app.evals.runner import load_dataset, run_evaluation
+from app.evals.runner import load_dataset, run_architecture_comparison
 from app.llm.provider import MockModelProvider
 from app.models.agent import AgentEvaluationRun
 from app.models.base import Base
@@ -20,7 +21,7 @@ FIXTURE = (
 )
 
 
-def test_stage5_has_30_case_repeatable_mock_baseline(tmp_path, monkeypatch):
+def test_stage5_and_stage7_have_30_case_repeatable_mock_baseline(tmp_path, monkeypatch):
     dataset = load_dataset()
     assert len(dataset.cases) == 30
     assert len({case.id for case in dataset.cases}) == 30
@@ -57,13 +58,29 @@ def test_stage5_has_30_case_repeatable_mock_baseline(tmp_path, monkeypatch):
         AGENT_MAX_TOTAL_TOKENS=1000,
     )
     with ToolExecutor(factory, timeout_seconds=2) as executor:
+        provider = MockModelProvider("stage5-baseline")
         service = AgentService(
             factory,
-            MockModelProvider("stage5-baseline"),
+            provider,
             executor,
             settings=settings,
+            multi_agent_factory=lambda: MultiAgent(
+                provider,
+                executor,
+                factory,
+                settings=settings,
+            ),
+            unverified_multi_agent_factory=lambda: MultiAgent(
+                provider,
+                executor,
+                factory,
+                settings=settings,
+                verification_enabled=False,
+            ),
         )
-        report = run_evaluation(service, "evaluation-owner", dataset)
+        comparison = run_architecture_comparison(service, "evaluation-owner", dataset)
+
+    report = comparison.single
 
     assert report.status == "passed"
     assert report.case_count == 30
@@ -71,8 +88,27 @@ def test_stage5_has_30_case_repeatable_mock_baseline(tmp_path, monkeypatch):
     assert report.tool_selection_accuracy == 1
     assert report.numeric_accuracy == 1
     assert report.total_tokens > 0
+    assert report.workflow == "single"
+    assert comparison.multi_unverified.status == "passed"
+    assert comparison.multi_unverified.workflow == "multi_unverified"
+    assert comparison.multi_verified.status == "passed"
+    assert comparison.multi_verified.workflow == "multi"
+    for item in (comparison.multi_unverified, comparison.multi_verified):
+        assert item.pass_rate == report.pass_rate
+        assert item.tool_selection_accuracy == report.tool_selection_accuracy
+        assert item.numeric_accuracy == report.numeric_accuracy
+        assert item.task_completion_rate == 1
+        assert item.evidence_coverage == 1
+        assert item.hallucination_rate == 0
+        assert item.p95_latency_ms >= item.p50_latency_ms
+    assert comparison.multi_verified.total_tokens > report.total_tokens
+    assert report.average_handoff_count == 0
+    assert comparison.multi_unverified.average_handoff_count == 2
+    assert comparison.multi_verified.average_handoff_count == 2
     with factory() as db:
-        stored = db.scalar(select(AgentEvaluationRun).where(AgentEvaluationRun.id == report.id))
-    assert stored is not None
-    assert stored.case_count == 30
-    assert stored.status == "passed"
+        stored = list(db.scalars(select(AgentEvaluationRun).order_by(AgentEvaluationRun.workflow)))
+    assert [(item.workflow, item.case_count, item.status) for item in stored] == [
+        ("multi", 30, "passed"),
+        ("multi_unverified", 30, "passed"),
+        ("single", 30, "passed"),
+    ]

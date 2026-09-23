@@ -8,6 +8,8 @@ from app.api.imports import owner_context
 from app.llm.contracts import ModelProviderError
 from app.schemas.agent import (
     AgentChatRequest,
+    AgentComparisonRequest,
+    AgentComparisonResponse,
     AgentRunResponse,
     AgentSessionListResponse,
     AgentSessionResponse,
@@ -37,11 +39,31 @@ def chat(
     service: AgentService = Depends(agent_service),
 ) -> AgentRunResponse:
     try:
-        return service.chat(owner_id, payload.message, payload.session_id)
+        return service.chat(
+            owner_id,
+            payload.message,
+            payload.session_id,
+            workflow=payload.workflow,
+        )
     except AgentServiceError as exc:
         http_status = 404 if exc.code == "AGENT_SESSION_NOT_FOUND" else 400
         raise HTTPException(
             status_code=http_status,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+
+@router.post("/compare", response_model=AgentComparisonResponse)
+def compare_workflows(
+    payload: AgentComparisonRequest,
+    owner_id: str = Depends(owner_context),
+    service: AgentService = Depends(agent_service),
+) -> AgentComparisonResponse:
+    try:
+        return service.compare(owner_id, payload.message)
+    except AgentServiceError as exc:
+        raise HTTPException(
+            status_code=400,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
 

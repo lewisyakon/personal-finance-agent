@@ -55,4 +55,3 @@ class ParseReport(BaseModel):
     error_rows: list[ParseRowError] = Field(default_factory=list)
     records: list[TransactionRecord] = Field(default_factory=list)
     header_row: int | None = None
-

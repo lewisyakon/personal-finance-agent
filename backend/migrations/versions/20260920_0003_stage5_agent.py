@@ -28,9 +28,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_agent_sessions_owner_id", "agent_sessions", ["owner_id"])
-    op.create_index(
-        "ix_agent_session_owner_updated", "agent_sessions", ["owner_id", "updated_at"]
-    )
+    op.create_index("ix_agent_session_owner_updated", "agent_sessions", ["owner_id", "updated_at"])
 
     op.create_table(
         "agent_runs",

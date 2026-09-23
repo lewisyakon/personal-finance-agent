@@ -13,4 +13,3 @@ def decode_bill(path: Path) -> tuple[str, str]:
     # Preserve row boundaries for an actionable parse error. The replacement
     # characters are detected by the parser as malformed content where needed.
     return raw.decode("utf-8", errors="replace"), "utf-8-replace"
-

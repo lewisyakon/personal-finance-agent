@@ -2,14 +2,16 @@
 
 ## 当前阶段
 
-阶段 0 至阶段 5 已完成实现；当前阶段 5 包含可切换 ModelProvider、有界 Single-Agent、
-Agent Trace、API 和 30 题评测基线。阶段 6 尚未开始；一次只实施一个阶段。
+阶段 0 至阶段 11 已完成实现；阶段 8 包含受校验任务图、Budget Agent 和显式确认；阶段 9 包含
+本地 Developer Console、三架构量化评测和失败样本；阶段 10 包含用户确认、版本化、可删除记忆
+与检索 Trace；阶段 11 包含本地发行、数据生命周期、备份恢复和安全加固。下一开发阶段为阶段 12；
+一次只实施一个阶段。
 
 ## 允许修改范围
 
-当前阶段允许修改 ModelProvider、Single-Agent、只读 Tool 编排、Trace/evidence 持久化、
-迁移、测试和文档。不得提前实现阶段 6 多 Agent，不得加入真实账单、微信登录、自动账户
-连接、Redis、Celery、Kubernetes 或未评测的 Agent。
+当前允许维护 ModelProvider、Single/Multi/Planner Agent、Semantic 分类、Budget、用户记忆、
+本地数据生命周期、只读 Tool 编排、Trace/evidence、评测、迁移、测试和文档。不得提前实现阶段 12，不得加入真实
+账单、微信登录、自动账户连接、Redis、Celery、Kubernetes 或未评测的 Agent。
 
 ## 约束
 
@@ -30,6 +32,8 @@ cd backend && pytest && ruff check app tests
 cd ../frontend && npm run typecheck && npm test && npm run build
 ```
 
-阶段 5 还应运行 Provider 切换/失败、Single-Agent 约束、数值 grounding 和 30 题评测；前端未改动时仍执行
-typecheck、Vitest、build 和 lint 回归。服务器上使用 Docker 时，应以临时
+阶段 5 至 11 还应运行 Provider 切换/失败、Agent 约束、数值 grounding、Semantic 规则优先、
+Planner 校验/重规划/确认、Verifier 失败路径、记忆生命周期和 30 题三架构对比；前端未改动时仍执行
+typecheck、Vitest、build 和 lint 回归；阶段 11 还需验证备份恢复、导出删除、恶意文件、Host
+门禁和提示注入。服务器上使用 Docker 时，应以临时
 `PFA_DATA_DIR` 验证，避免触碰真实账本目录。

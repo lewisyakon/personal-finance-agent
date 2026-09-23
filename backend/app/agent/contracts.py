@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 class AgentExecutionResult(BaseModel):
     run_id: str
-    status: Literal["succeeded", "failed", "cancelled"]
+    status: Literal["succeeded", "failed", "cancelled", "needs_confirmation"]
     answer: str
     error_code: str | None = None
     error_message: str | None = None
@@ -22,6 +22,7 @@ class AgentExecutionResult(BaseModel):
     prompt_tokens: int = Field(ge=0)
     completion_tokens: int = Field(ge=0)
     total_tokens: int = Field(ge=0)
+    estimated_cost_microusd: int = Field(default=0, ge=0)
     duration_ms: int = Field(ge=0)
 
 

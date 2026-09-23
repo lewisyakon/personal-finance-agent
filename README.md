@@ -11,6 +11,17 @@
   Tool Trace，以及 Owner 范围内的 `evidence_id` 快照重放。
 - 阶段 5：mock/local/remote OpenAI-compatible ModelProvider、有界 LangGraph Single-Agent、
   会话与运行 API、数值 grounding、最小化模型 Trace，以及固定 30 题评测基线。
+- 阶段 6：规则优先 Semantic Agent、商户归一化、历史证据、低置信度待确认和用户确认规则。
+- 阶段 7：固定 Supervisor/Analysis/Verifier 图、严格 Handoff、确定性 Verifier、节点 Trace、
+  简单问题快路径及 Single/Multi 同题对比。
+- 阶段 8：结构化 Planner、任务图校验、依赖波并行执行、一次有界重规划、确定性 Budget Agent
+  和预算/分歧确认门禁。
+- 阶段 9：本地 Developer Console、Run/计划/Evidence/记忆 Trace、版本化失败样本，以及
+  Single/Multi/Multi+Verifier 三架构量化对比。
+- 阶段 10：区分会话/长期/知识的用户可控记忆、来源与版本链、过期/删除、检索 hit/miss Trace
+  和记忆管理页面。
+- 阶段 11：仅回环访问的 Local Web 发行、固定数据目录、显式导出/删除、SQLite 备份恢复、
+  升级前保护备份、恶意文件/提示注入防护和 Agent 资源上限。
 
 当前 Parser 支持微信 CSV 和 XLSX；ZIP 会在脱敏样例确实需要时按阶段扩展。Parser 不调用 LLM。
 
@@ -77,6 +88,51 @@ curl 'http://127.0.0.1:8000/api/v1/stats/summary?from=2026-01-01&to=2026-02-01T0
   不通过时返回“无法确定”。模型 Trace 不保存完整 prompt、上下文或 reasoning。
 - 30 题数据集覆盖全部 9 个 Tool，记录 Tool 选择、证据数值、延迟和 Token，默认门槛 80%。
 
+阶段 6 Semantic Agent：
+
+- `POST /api/v1/semantic/transactions/{id}/classify` 先查用户规则、平台分类和历史，均无法判定
+  时才调用模型；低于置信度阈值的建议保持 `pending`。
+- `/api/v1/semantic/suggestions/*` 支持确认/拒绝，`/api/v1/semantic/rules` 支持查询和删除。
+  用户确认规则优先于后续模型结果，已确认商户不会重复调用模型。
+
+阶段 7 Multi-Agent：
+
+- `/api/v1/agent/chat` 支持 `workflow=auto|single|multi`；auto 保留简单查账的 Single-Agent
+  快路径，复杂问题进入固定 `Supervisor -> Analysis -> Verifier` 图。
+- `POST /api/v1/agent/compare` 对同一问题运行两种工作流；Run 响应包含最小化节点 Trace。
+- `python -m app.evals.runner --workflow compare` 在同一 30 题数据集上输出通过率、Tool 选择、
+  数值准确率、延迟和 Token 差值。当前只验收确定性 mock；真实 Ollama/远程模型待配置后执行。
+
+阶段 8 Planner 与 Budget Agent：
+
+- `/api/v1/agent/chat` 支持 `workflow=planner`；任务图先校验 Agent/Tool/参数/依赖/循环，再按
+  拓扑波次并行执行无依赖任务，最多进行一次 Evidence 驱动重规划。
+- `/api/v1/budgets` 管理确定性统计生成的预算草案；`/api/v1/agent/confirmations` 处理预算与
+  结果分歧。预算未经用户确认不会成为长期偏好。
+
+阶段 9 Developer Console：
+
+- 前端 `/developer` 展示 Run 节点、计划版本、Tool Evidence、延迟、错误、评测和失败样本；后端
+  `/api/v1/developer/*` 只在本地/开发/测试模式并显式启用时开放。
+- `python -m app.evals.runner --workflow architecture` 用同一 30 题数据集比较 Single、未验证
+  Multi 和 Multi+Verifier。当前按要求仅验收 mock；不宣称真实 Ollama/远程模型质量基线。
+
+阶段 10 用户可控记忆：
+
+- 前端 `/memories` 和 `/api/v1/memories` 支持查看、显式创建、版本化修改和软删除。
+- 记忆区分 `session`、`long_term`、`knowledge`；只保存 `user_confirmed` 来源。模型自动分类、
+  推测和未确认预算不会写入长期记忆，已删除/过期记录不会注入 Planner。
+- `/api/v1/memories/accesses` 和 Developer Console 显示检索 `hit`/`miss` 与匹配 ID，查询原文
+  仅保存 SHA-256 指纹。
+
+阶段 11 本地发行与安全：
+
+- 前端 `/settings` 管理导出、SQLite 备份/恢复和删除全部数据；所有动作需要输入精确确认短语，
+  删除和恢复还会先显示不可逆/覆盖警告。
+- `DATA_DIR` 固定承载数据库、短期上传、日志和备份。上传 XLSX 会检查路径穿越、条目/解压大小、
+  压缩比与加密标记；账单文本作为不可信 Tool 数据，不能扩大系统提示或只读 Tool 权限。
+- 数据管理 API 见 `/api/v1/data/*`。本地发行只绑定回环地址，Host 白名单默认拒绝非本机请求。
+
 默认 mock 不访问网络，可直接体验基本查账。使用 Ollama 等本地 OpenAI-compatible 服务：
 
 ```bash
@@ -101,10 +157,26 @@ Tool Schema、错误、分页和 evidence 语义见
 ModelProvider、Single-Agent 和评测契约见
 [`docs/data-contracts/stage5-model-agent.md`](docs/data-contracts/stage5-model-agent.md)，Agent API
 见 [`docs/api/stage5-agent.md`](docs/api/stage5-agent.md)。
+Semantic 分类合同和 API 见
+[`docs/data-contracts/stage6-semantic.md`](docs/data-contracts/stage6-semantic.md)、
+[`docs/api/stage6-semantic.md`](docs/api/stage6-semantic.md)。Multi-Agent 合同和 API 见
+[`docs/data-contracts/stage7-multi-agent.md`](docs/data-contracts/stage7-multi-agent.md)、
+[`docs/api/stage7-multi-agent.md`](docs/api/stage7-multi-agent.md)。
+Planner、可观测性和记忆合同/API 分别见
+[`docs/data-contracts/stage8-planning.md`](docs/data-contracts/stage8-planning.md)、
+[`docs/api/stage8-planning.md`](docs/api/stage8-planning.md)、
+[`docs/data-contracts/stage9-observability.md`](docs/data-contracts/stage9-observability.md)、
+[`docs/api/stage9-observability.md`](docs/api/stage9-observability.md)、
+[`docs/data-contracts/stage10-memory.md`](docs/data-contracts/stage10-memory.md) 和
+[`docs/api/stage10-memory.md`](docs/api/stage10-memory.md)。
+阶段 11 安全合同、数据 API 与发行决策见
+[`docs/data-contracts/stage11-security.md`](docs/data-contracts/stage11-security.md)、
+[`docs/api/stage11-data-management.md`](docs/api/stage11-data-management.md) 和
+[`docs/adr/0001-local-web-release.md`](docs/adr/0001-local-web-release.md)。
 仓库中的 [`datasets/sanitized_samples/stage3_stats_fixture.csv`](datasets/sanitized_samples/stage3_stats_fixture.csv)
 是可重复导入的合成核对夹具，文档中列出了该夹具的手工期望总数。
 
-## 阶段 3/4/5 验收
+## 阶段 3 至 11 验收
 
 后端测试使用临时数据目录，不会触碰当前的 `pfa-validation-data`。在服务器上执行：
 
@@ -134,9 +206,18 @@ npm run lint
 ```
 
 首次启动会自动创建本地表；由 Alembic 管理的生产/升级环境请使用：
-`cd backend && alembic upgrade head`。阶段 4 会新增 `tool_traces` 表；未使用 Alembic 管理的
-本地 MVP 数据库会在启动新版服务时由 `create_all` 补齐新表，并为已有 `tool_traces` 安全
-添加阶段 5 的可空 `run_id`；不要对未 stamp 的既有数据库直接套用初始迁移。
+`cd backend && alembic upgrade head`。阶段 4 会新增 `tool_traces` 表；阶段 6/7 新增语义分类、
+用户规则和 Multi-Agent Trace 表。未使用 Alembic 管理的
+本地 MVP 数据库会在启动新版服务时先创建 `pre_upgrade` 保护备份，再由 `create_all` 补齐新表并
+为已有表安全补充兼容列；
+阶段 8 至 10 新增 Planner/预算/确认、评测指标/失败样本、版本化记忆及访问 Trace 表。不要对
+未 stamp 的既有数据库直接套用初始迁移。
+
+由 Alembic 管理的本地库使用以下命令升级；它会在发现旧版本时先创建一致性备份：
+
+```bash
+./scripts/docker-compose.sh run --rm --no-deps backend python -m app.data_admin upgrade
+```
 
 ## 用户目录安装
 
@@ -177,7 +258,7 @@ cd frontend && npm run typecheck && npm test && npm run build
 ./scripts/app-dev.sh
 ```
 
-## Docker 开发环境
+## Docker 环境
 
 如果宿主机没有可用的 Python 3.12（例如项目 `.venv` 是在另一个 Python 镜像中创建的），可以使用仓库内的 Docker Compose 配置。镜像会在容器内安装后端依赖，宿主机不需要把依赖安装到系统 Python，也不会改写宿主机的全局 `site-packages`：
 
@@ -201,13 +282,12 @@ PFA_BUILD_NETWORK=host ./scripts/docker-compose.sh up --build backend
 ./scripts/backend-python.sh -m ruff check app tests
 ```
 
-Docker 运行时的边界是显式挂载的目录和端口：
+Docker 运行时的边界是显式挂载的数据目录和回环端口：
 
-- `backend/` 挂载到容器用于热重载，编辑器中的代码修改会即时生效；
-- `data/` 挂载到容器，SQLite 数据库和上传文件因此与宿主机项目共享，这是有意的持久化行为；
-- `datasets/` 以只读方式挂载；`.venv`、Node.js、系统 Python 和其他宿主机目录不会挂载；
+- `PFA_DATA_DIR`（默认 `data/`）挂载到容器，SQLite、短期上传和备份因此持久化；
+- 后端代码构建进镜像，不在发行容器内挂载或热重载；`.venv` 和其他宿主机目录不会挂载；
 - `data/` 和 `datasets/` 也不会被复制进镜像构建层，避免账单内容进入镜像缓存；
-- API 只绑定宿主机 `127.0.0.1:8000`，不会默认暴露到局域网或公网。
+- API 和前端分别只绑定宿主机 `127.0.0.1:8000`、`127.0.0.1:5173`，不会默认暴露到局域网或公网。
 
 因此，容器本身删除后不会留下容器级依赖或进程；挂载目录中的数据库、上传文件和代码修改会保留。首次启动前如果不希望触碰当前账本，可以备份 `data/personal_finance.db`，或把 Compose 中的 `./data` 改为单独的测试目录。脚本会把容器进程设置为当前用户的 UID/GID，避免在项目目录生成 root 所有的文件。
 
@@ -217,3 +297,15 @@ Docker 运行时的边界是显式挂载的目录和端口：
 PFA_DATA_DIR="$(mktemp -d)" ./scripts/docker-compose.sh run --rm --no-deps --build \
   --service-ports backend python -m pytest
 ```
+
+## 本地发行
+
+```bash
+# 默认持久化到仓库 data/；也可先 export PFA_DATA_DIR=/绝对/目录
+./scripts/local-release.sh
+```
+
+随后只在本机访问 `http://127.0.0.1:5173`。停止服务使用 `./scripts/docker-compose.sh down`；
+该命令不会删除 `PFA_DATA_DIR`。普通本地库在兼容升级前自动备份；仅当数据库已经由 Alembic
+管理时使用 `app.data_admin upgrade`。也可以先在设置页创建手工备份。发行选择与恢复演练见
+阶段 11 文档。

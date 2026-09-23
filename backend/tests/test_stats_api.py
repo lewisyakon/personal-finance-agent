@@ -22,9 +22,7 @@ def _seed_api_database(tmp_path):
     )
     Base.metadata.create_all(engine)
     with Session(engine) as db:
-        db.add(
-            WorkspaceOwner(id="api-stats-owner", display_name="API 统计测试用户")
-        )
+        db.add(WorkspaceOwner(id="api-stats-owner", display_name="API 统计测试用户"))
         db.add(
             BillImport(
                 id="api-stats-import",
@@ -168,8 +166,7 @@ def test_stats_api_validates_period_and_multi_currency(tmp_path):
         assert invalid_budget.json()["detail"]["code"] == "INVALID_BUDGET"
 
         invalid_threshold = client.get(
-            "/api/v1/stats/large-transactions?"
-            "from=2026-01-01&to=2026-02-01&threshold_minor=-1"
+            "/api/v1/stats/large-transactions?from=2026-01-01&to=2026-02-01&threshold_minor=-1"
         )
         assert invalid_threshold.status_code == 400
         assert invalid_threshold.json()["detail"]["code"] == "INVALID_THRESHOLD"
@@ -193,8 +190,7 @@ def test_stats_api_validates_period_and_multi_currency(tmp_path):
         assert invalid_limit_type.json()["detail"]["code"] == "INVALID_LIMIT"
 
         invalid_threshold_type = client.get(
-            "/api/v1/stats/large-transactions?"
-            "from=2026-01-01&to=2026-02-01&threshold_minor=abc"
+            "/api/v1/stats/large-transactions?from=2026-01-01&to=2026-02-01&threshold_minor=abc"
         )
         assert invalid_threshold_type.status_code == 400
         assert invalid_threshold_type.json()["detail"]["code"] == "INVALID_THRESHOLD"

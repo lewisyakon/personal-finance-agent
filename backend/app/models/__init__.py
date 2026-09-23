@@ -1,4 +1,10 @@
-from app.models.agent import AgentEvaluationRun, AgentRun, AgentSession, ModelCallTrace
+from app.models.agent import (
+    AgentEvaluationRun,
+    AgentRun,
+    AgentSession,
+    EvaluationFailureSample,
+    ModelCallTrace,
+)
 from app.models.base import Base
 from app.models.finance import (
     BillImport,
@@ -7,6 +13,10 @@ from app.models.finance import (
     TransactionCategoryChange,
     WorkspaceOwner,
 )
+from app.models.memory import MemoryAccessTrace, MemoryRecord
+from app.models.multi_agent import AgentStepTrace
+from app.models.planning import AgentConfirmation, AgentPlanTrace, BudgetPlan
+from app.models.semantic import ClassificationSuggestion, MerchantRule
 from app.models.tooling import ToolTrace
 
 __all__ = [
@@ -14,8 +24,17 @@ __all__ = [
     "AgentEvaluationRun",
     "AgentRun",
     "AgentSession",
+    "EvaluationFailureSample",
+    "AgentStepTrace",
+    "AgentConfirmation",
+    "AgentPlanTrace",
     "BillImport",
+    "BudgetPlan",
     "Category",
+    "ClassificationSuggestion",
+    "MerchantRule",
+    "MemoryAccessTrace",
+    "MemoryRecord",
     "Transaction",
     "TransactionCategoryChange",
     "ToolTrace",

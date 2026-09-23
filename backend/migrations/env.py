@@ -1,10 +1,19 @@
 from logging.config import fileConfig
+
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
+from app.models import (  # noqa: F401  # register all stage models
+    agent,
+    finance,
+    memory,
+    multi_agent,
+    planning,
+    semantic,
+    tooling,
+)
 from app.models.base import Base
-from app.models import agent, finance, tooling  # noqa: F401  # register all stage models
 
 config = context.config
 if config.config_file_name is not None:

@@ -18,6 +18,7 @@ fi
 # the host-created .venv inside an unrelated Python container. Compose mounts
 # only the source/data directories and keeps the process on the caller's UID.
 if [[ -f "${ROOT_DIR}/docker-compose.yml" ]]; then
+  export PFA_BACKEND_EXTRAS="${PFA_BACKEND_EXTRAS:-[dev]}"
   exec "${ROOT_DIR}/scripts/docker-compose.sh" run --rm --no-deps --build \
     --service-ports backend python "$@"
 fi

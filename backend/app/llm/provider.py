@@ -34,6 +34,26 @@ _YUAN_PATTERN = re.compile(r"(\d+(?:\.\d{1,2})?)\s*元")
 _QUOTED_MERCHANT_PATTERN = re.compile(r"[“\"']([^”\"']{1,120})[”\"']")
 
 
+def _mock_tool_name(query: str) -> str:
+    if "预算" in query:
+        return "get_budget_status"
+    if any(word in query for word in ("类别", "分类", "构成")):
+        return "get_category_breakdown"
+    if any(word in query for word in ("趋势", "走势", "每天", "每周", "每月")):
+        return "get_trend"
+    if any(word in query for word in ("大额", "超过", "高于")):
+        return "get_large_transactions"
+    if any(word in query for word in ("商户排行", "商家排行", "花得最多")):
+        return "get_top_merchants"
+    if "历史" in query and _QUOTED_MERCHANT_PATTERN.search(query):
+        return "get_merchant_history"
+    if any(word in query for word in ("对比", "比较", "环比", "同比")):
+        return "compare_periods"
+    if any(word in query for word in ("明细", "搜索", "查找", "哪几笔")):
+        return "search_transactions"
+    return "get_spending_summary"
+
+
 class ModelProvider(Protocol):
     provider: str
     model: str
@@ -126,9 +146,165 @@ class MockModelProvider:
             scripted = self._script.popleft()
             completion = scripted(request) if callable(scripted) else scripted
             return completion.model_copy(update={"provider": self.provider, "model": self.model})
+        if request.response_format is not None:
+            return self._structured_response(request)
         if request.messages[-1].role == "tool":
             return self._answer_tool_result(request.messages[-1])
         return self._select_tool(request)
+
+    def _structured_response(self, request: ModelRequest) -> ModelCompletion:
+        if request.response_format and request.response_format.name == "semantic_classification":
+            try:
+                payload = json.loads(request.messages[-1].content or "{}")
+                candidates = payload.get("candidate_categories") or []
+            except (TypeError, ValueError):
+                candidates = []
+            category = "其他" if "其他" in candidates else (candidates[0] if candidates else "其他")
+            content = json.dumps(
+                {
+                    "category": category,
+                    "confidence": 0.4,
+                    "rationale": "mock 低置信度候选，等待用户确认",
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        elif request.response_format and request.response_format.name == "supervisor_handoff":
+            query = next(
+                (
+                    message.content or ""
+                    for message in reversed(request.messages)
+                    if message.role == "user"
+                ),
+                "",
+            )
+            date_from, date_to = self._period(query)
+            direction = "income" if "收入" in query else "expense" if "支出" in query else "all"
+            content = json.dumps(
+                {
+                    "normalized_intent": query[:200] or "消费分析",
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "direction": direction,
+                    "plan": [
+                        {
+                            "task_id": "analysis-1",
+                            "agent": "analysis",
+                            "objective": "使用只读 Tool 获取事实并形成分析",
+                            "required_tools": [_mock_tool_name(query)],
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        elif request.response_format and request.response_format.name in {
+            "planner_task_graph",
+            "planner_replan",
+        }:
+            raw_query = next(
+                (
+                    message.content or ""
+                    for message in reversed(request.messages)
+                    if message.role == "user"
+                ),
+                "",
+            )
+            is_replan = request.response_format.name == "planner_replan"
+            if is_replan:
+                try:
+                    query = str(json.loads(raw_query).get("query", ""))
+                except (TypeError, ValueError):
+                    query = raw_query
+            else:
+                query = raw_query
+            if is_replan:
+                tasks = [
+                    {
+                        "task_id": "replan-summary",
+                        "agent": "analysis",
+                        "objective": "根据新证据补查周期汇总",
+                        "tool_name": "get_spending_summary",
+                        "arguments": self._mock_arguments(query, "get_spending_summary"),
+                        "depends_on": [],
+                    }
+                ]
+            elif "预算" in query:
+                tasks = [
+                    {
+                        "task_id": "budget-baseline",
+                        "agent": "budget",
+                        "objective": "获取预算基线支出",
+                        "tool_name": "get_spending_summary",
+                        "arguments": self._mock_arguments(query, "get_spending_summary"),
+                        "depends_on": [],
+                    },
+                    {
+                        "task_id": "budget-categories",
+                        "agent": "analysis",
+                        "objective": "获取预算压缩的分类依据",
+                        "tool_name": "get_category_breakdown",
+                        "arguments": self._mock_arguments(query, "get_category_breakdown"),
+                        "depends_on": [],
+                    },
+                ]
+            elif any(word in query for word in ("综合", "并行", "依赖")):
+                tasks = [
+                    {
+                        "task_id": "summary",
+                        "agent": "analysis",
+                        "objective": "获取周期汇总",
+                        "tool_name": "get_spending_summary",
+                        "arguments": self._mock_arguments(query, "get_spending_summary"),
+                        "depends_on": [],
+                    },
+                    {
+                        "task_id": "categories",
+                        "agent": "analysis",
+                        "objective": "获取分类构成",
+                        "tool_name": "get_category_breakdown",
+                        "arguments": self._mock_arguments(query, "get_category_breakdown"),
+                        "depends_on": [],
+                    },
+                    {
+                        "task_id": "merchants",
+                        "agent": "analysis",
+                        "objective": "在汇总与分类完成后补查主要商户",
+                        "tool_name": "get_top_merchants",
+                        "arguments": self._mock_arguments(query, "get_top_merchants"),
+                        "depends_on": ["summary", "categories"],
+                    },
+                ]
+            else:
+                tool_name = _mock_tool_name(query)
+                tasks = [
+                    {
+                        "task_id": "analysis-1",
+                        "agent": "analysis",
+                        "objective": "使用只读 Tool 获取事实",
+                        "tool_name": tool_name,
+                        "arguments": self._mock_arguments(query, tool_name),
+                        "depends_on": [],
+                    }
+                ]
+            content = json.dumps(
+                {
+                    "version": 2 if is_replan else 1,
+                    "allow_replan": False if is_replan else "重新规划" in query,
+                    "tasks": tasks,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        else:
+            content = "{}"
+        return ModelCompletion(
+            provider=self.provider,
+            model=self.model,
+            content=content,
+            finish_reason="stop",
+            usage=TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+        )
 
     def _select_tool(self, request: ModelRequest) -> ModelCompletion:
         query = next(
@@ -142,23 +318,7 @@ class MockModelProvider:
         available = {
             item.get("function", {}).get("name") for item in request.tools if isinstance(item, dict)
         }
-        tool_name = "get_spending_summary"
-        if "预算" in query:
-            tool_name = "get_budget_status"
-        elif any(word in query for word in ("类别", "分类", "构成")):
-            tool_name = "get_category_breakdown"
-        elif any(word in query for word in ("趋势", "走势", "每天", "每周", "每月")):
-            tool_name = "get_trend"
-        elif any(word in query for word in ("大额", "超过", "高于")):
-            tool_name = "get_large_transactions"
-        elif any(word in query for word in ("商户排行", "商家排行", "花得最多")):
-            tool_name = "get_top_merchants"
-        elif "历史" in query and _QUOTED_MERCHANT_PATTERN.search(query):
-            tool_name = "get_merchant_history"
-        elif any(word in query for word in ("对比", "比较", "环比", "同比")):
-            tool_name = "compare_periods"
-        elif any(word in query for word in ("明细", "搜索", "查找", "哪几笔")):
-            tool_name = "search_transactions"
+        tool_name = _mock_tool_name(query)
 
         if tool_name not in available:
             return ModelCompletion(
@@ -167,6 +327,17 @@ class MockModelProvider:
                 content="mock provider 没有可用的只读 Tool。",
                 usage=TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
             )
+        arguments = self._mock_arguments(query, tool_name)
+
+        return ModelCompletion(
+            provider=self.provider,
+            model=self.model,
+            tool_calls=[ModelToolCall(id="mock_call_1", name=tool_name, arguments=arguments)],
+            finish_reason="tool_calls",
+            usage=TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+        )
+
+    def _mock_arguments(self, query: str, tool_name: str) -> dict[str, Any]:
         date_from, date_to = self._period(query)
         arguments: dict[str, Any] = {"from": date_from, "to": date_to}
         yuan_match = _YUAN_PATTERN.search(query)
@@ -209,13 +380,7 @@ class MockModelProvider:
                 page_size=20,
             )
 
-        return ModelCompletion(
-            provider=self.provider,
-            model=self.model,
-            tool_calls=[ModelToolCall(id="mock_call_1", name=tool_name, arguments=arguments)],
-            finish_reason="tool_calls",
-            usage=TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
-        )
+        return arguments
 
     @staticmethod
     def _period(query: str) -> tuple[str, str]:
@@ -235,6 +400,8 @@ class MockModelProvider:
     def _answer_tool_result(self, message: ModelMessage) -> ModelCompletion:
         try:
             result = json.loads(message.content or "{}")
+            if result.get("security_label") == "untrusted_tool_data":
+                result = result["payload"]
             data = result["data"]
         except (ValueError, KeyError, TypeError):
             content = "无法确定：mock provider 收到的 Tool 结果无效。"

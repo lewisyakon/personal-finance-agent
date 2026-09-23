@@ -11,6 +11,7 @@ class AgentChatRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=2000)
     session_id: str | None = Field(default=None, min_length=36, max_length=36)
+    workflow: Literal["auto", "single", "multi", "multi_unverified", "planner"] = "auto"
 
     @field_validator("message")
     @classmethod
@@ -28,6 +29,7 @@ class AgentMetrics(BaseModel):
     prompt_tokens: int = Field(ge=0)
     completion_tokens: int = Field(ge=0)
     total_tokens: int = Field(ge=0)
+    estimated_cost_microusd: int = Field(ge=0)
     duration_ms: int = Field(ge=0)
 
 
@@ -45,16 +47,28 @@ class ModelCallTraceResponse(BaseModel):
     created_at: datetime
 
 
+class AgentStepTraceResponse(BaseModel):
+    sequence: int = Field(ge=1)
+    node: str
+    status: str
+    input_summary: dict
+    output_summary: dict
+    duration_ms: int = Field(ge=0)
+    error_code: str | None = None
+    created_at: datetime
+
+
 class AgentRunResponse(BaseModel):
     id: str
     session_id: str
-    status: Literal["running", "succeeded", "failed", "cancelled"]
+    status: Literal["running", "succeeded", "failed", "cancelled", "needs_confirmation"]
     user_query: str
     answer: str | None = None
     error_code: str | None = None
     error_message: str | None = None
     provider: str
     model: str
+    workflow: Literal["single", "multi", "multi_unverified", "planner"]
     evidence_refs: list[str]
     tool_names: list[str]
     metrics: AgentMetrics
@@ -62,6 +76,7 @@ class AgentRunResponse(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     model_calls: list[ModelCallTraceResponse] = Field(default_factory=list)
+    agent_steps: list[AgentStepTraceResponse] = Field(default_factory=list)
 
 
 class AgentSessionSummary(BaseModel):
@@ -81,3 +96,27 @@ class AgentSessionListResponse(BaseModel):
 
 class AgentSessionResponse(AgentSessionSummary):
     runs: list[AgentRunResponse]
+
+
+class AgentComparisonRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("message")
+    @classmethod
+    def strip_comparison_message(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("消息不能为空")
+        return stripped
+
+
+class AgentComparisonResponse(BaseModel):
+    single: AgentRunResponse
+    multi: AgentRunResponse
+    same_status: bool
+    same_tools: bool
+    shared_evidence_count: int = Field(ge=0)
+    latency_delta_ms: int
+    token_delta: int

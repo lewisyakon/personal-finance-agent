@@ -10,7 +10,8 @@
 ```json
 {
   "message": "2026年1月总支出是多少？",
-  "session_id": null
+  "session_id": null,
+  "workflow": "auto"
 }
 ```
 
@@ -29,6 +30,7 @@
   "error_message": null,
   "provider": "local",
   "model": "qwen-model",
+  "workflow": "single",
   "evidence_refs": ["ev_..."],
   "tool_names": ["get_spending_summary"],
   "metrics": {
@@ -43,11 +45,14 @@
   "cancellation_requested": false,
   "started_at": "2026-09-20T10:00:00Z",
   "completed_at": "2026-09-20T10:00:01Z",
-  "model_calls": []
+  "model_calls": [],
+  "agent_steps": []
 }
 ```
 
 `model_calls` 只含元数据，不含 prompt、上下文或 reasoning。
+阶段 7 增加的 `workflow` 和 `agent_steps` 详见
+[`stage7-multi-agent.md`](stage7-multi-agent.md)；Single-Agent 的 `agent_steps` 为空。
 
 ## 查询与取消
 

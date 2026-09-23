@@ -279,14 +279,8 @@ def test_category_update_is_reflected_without_reimport(tmp_path):
         after = get_category_breakdown(db, "owner-a", _period())
 
     assert before.items[0].category == "住房/房租"
-    assert (
-        next(item for item in before.items if item.category == "餐饮/早餐").amount_minor
-        == 1200
-    )
-    assert (
-        next(item for item in after.items if item.category == "自定义/早餐").amount_minor
-        == 1200
-    )
+    assert next(item for item in before.items if item.category == "餐饮/早餐").amount_minor == 1200
+    assert next(item for item in after.items if item.category == "自定义/早餐").amount_minor == 1200
     assert not any(item.category == "餐饮/早餐" for item in after.items)
 
 
@@ -299,9 +293,7 @@ def test_trend_merchant_large_fixed_variable_and_budget(tmp_path):
             for granularity in ("day", "week", "month", "year")
         }
         merchants = get_top_merchants(db, "owner-a", _period(), "expense", limit=3)
-        large = get_large_transactions(
-            db, "owner-a", _period(), threshold_minor=1000, limit=10
-        )
+        large = get_large_transactions(db, "owner-a", _period(), threshold_minor=1000, limit=10)
         fixed = get_fixed_variable(db, "owner-a", _period())
         budget = get_budget_status(db, "owner-a", _period(), 6000)
 

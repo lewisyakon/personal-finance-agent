@@ -10,4 +10,3 @@ class BillParser(Protocol):
 
     def parse(self, path: Path) -> ParseReport:
         """Parse a bill file without calling a model."""
-
